@@ -1,0 +1,60 @@
+.page {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 4rem 1.5rem;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 2.25rem;
+  letter-spacing: 0.02em;
+}
+
+.subtitle {
+  margin: 0.25rem 0 2rem;
+  color: #8b98a5;
+}
+
+.positioning {
+  margin: 0 0 2.5rem;
+  padding: 1rem 1.25rem;
+  border-left: 3px solid #4a9eff;
+  background: rgba(74, 158, 255, 0.08);
+  font-size: 0.95rem;
+  line-height: 1.7;
+}
+
+.modules {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+  margin-bottom: 2.5rem;
+}
+
+.module {
+  padding: 1.25rem;
+  border: 1px solid #263140;
+  border-radius: 8px;
+}
+
+.module h2 {
+  margin-top: 0;
+  font-size: 1.05rem;
+}
+
+.module p {
+  color: #a9b4bf;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.status {
+  color: #6b7681;
+  font-size: 0.85rem;
+}
+
+@media (max-width: 600px) {
+  .modules {
+    grid-template-columns: 1fr;
+  }
+}

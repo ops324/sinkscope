@@ -1,0 +1,40 @@
+name: sinkscope
+
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_DB: ${DB_NAME:-sinkscope}
+      POSTGRES_USER: ${DB_USER:-sinkscope}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-sinkscope}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-sinkscope}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - ./backend:/app
+      - ./data:/data
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      DB_HOST: db
+    depends_on:
+      db:
+        condition: service_healthy
+    # postgis初回起動はinitdbのため一瞬再起動が入り、db側healthcheck通過直後でも
+    # backendの最初の接続が拒否されることがある。自己修復のためunless-stoppedにする。
+    restart: unless-stopped
+
+volumes:
+  pgdata:
