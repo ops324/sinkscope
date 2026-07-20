@@ -90,5 +90,7 @@ STATIC_URL = "static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # 全レイヤーの空間参照系はJGD2011（EPSG:6668）に統一して保存する。
-# 面積・距離ベースの解析（バリオグラム、メッシュ集計等）はUTM系へ都度投影する。
+# 面積・距離ベースの解析（メッシュ生成、バリオグラム等）は平面直角座標系IX系
+# （EPSG:6677、関東域）へ都度投影する。対象エリアが変わる場合はcore/mesh.pyの
+# PROJECTED_SRIDも合わせて見直すこと。
 SINKSCOPE_STORAGE_SRID = 6668
