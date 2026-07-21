@@ -83,6 +83,11 @@ npm run dev
 - **クラウドデプロイ**: ローカルDocker Composeでの再現性を優先し、デプロイは
   スコープ外とした。
 
+## 技術仕様書
+
+データモデル・空間設計・各データソースの実アクセス方法（実機検証済み）の詳細は
+[docs/SPEC.md](./docs/SPEC.md) を参照。
+
 ## 参考文献・出典
 
 - 国土地理院「衛星SAR干渉解析による地盤変動情報」https://www.gsi.go.jp/uchusokuchi/sar_tsa.html
