@@ -195,13 +195,20 @@ class TriageApiTests(TestCase):
 
         isolated_run = TriageRun.objects.create(seed=1)
         # 全て同一tierにし、mesh_code昇順とpriority_index降順が正反対になるよう
-        # 構築する: mesh_codeが最も若いセルにpriority_indexの最大値を与える。
+        # 構築する: mesh_codeが最も若いセルにpriority_indexの最小値を与える
+        # (rank昇順=mesh_code昇順=priority_index"昇順"となるようrankをそのまま
+        # 使う。こうするとpriority_index"降順"はmesh_code降順、すなわち
+        # distinct_mesh_codesの逆順になり、tier→mesh_code昇順の結果と正反対になる。
+        # 以前は`len(distinct_mesh_codes) - rank`としており、rank昇順(mesh_code昇順)
+        # とpriority_index"降順"が同じ向きになってしまっていた――両実装が偶然
+        # 同じ並び順を返す退化したフィクスチャで、ガードレール実装が壊れても
+        # このテストは検知できなかった(CI導入時の敵対的検証で発覚)。
         for rank, mesh_code in enumerate(distinct_mesh_codes):
             cell = next(c for c in self.cells if c.mesh_code == mesh_code)
             MeshPriority.objects.create(
                 mesh_cell=cell,
                 run=isolated_run,
-                priority_index=float(len(distinct_mesh_codes) - rank),
+                priority_index=float(rank),
                 tier="high",
                 velocity_cm_per_year=None,
                 road_length_m=None,

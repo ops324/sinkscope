@@ -1,0 +1,47 @@
+name: CI
+
+# 誠実性フレームワーク(docs/SPEC.md §5)を支えるテスト群 ―― 生スコアの非公開・
+# tier並び順のpriority_index非依存化・p値/相関の単一情報源化などのガードレール
+# (backend/*/tests.py、独立敵対的監査PR #6〜#9で追加/強化) ―― は、これまで
+# ローカルで手動実行するしかなく、回帰しても気づけなかった。本ワークフローは
+# それを全PR・全pushで強制する。
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # README「開発環境セットアップ」と同一の手順(cp .env.example .env →
+      # docker compose up --build)。CIを別経路にすると手順同士がdriftするため、
+      # 実際にコントリビューターが踏む手順をそのまま踏む。
+      - name: Prepare .env
+        run: cp .env.example .env
+
+      - name: Build backend image
+        run: docker compose build backend
+
+      # `docker compose run`はdepends_on(dbのservice_healthy条件)を解決してから
+      # 単発コンテナを実行し、コンテナの終了コードをそのまま返す
+      # (`up`と違い、テストの成否がジョブの成否に正しく伝播する)。
+      - name: Run Django test suite
+        run: docker compose run --rm backend python manage.py test --verbosity=2
+
+      - name: Show backend logs on failure
+        if: failure()
+        run: docker compose logs backend db
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
