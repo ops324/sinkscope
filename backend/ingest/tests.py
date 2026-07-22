@@ -9,21 +9,27 @@
   3. 同一ラスタ（同一content_sha256）の再取込が`DisplacementAcquisition`を
      重複作成せず、`DisplacementVelocity.acquisition`が同一の取得記録を
      指し続けること（ネットワークはモックし、合成GeoTIFFを使う）
+  4. `kokudo_suuchi._cache_dir()`が絶対パス"/data/raw/ksj"を直書きせず、
+     `settings.RAW_DATA_DIR`配下に解決されること（コンテナ外では存在しない
+     ディレクトリを指し再現不能になっていたハードコードパスの修正を検証）
 """
 from datetime import datetime
 from datetime import timezone as dt_timezone
+from pathlib import Path
 from unittest import mock
 
 import numpy as np
 import rasterio
 import rasterio.io
-from django.test import SimpleTestCase, TestCase
+from django.conf import settings
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.utils import timezone
 from rasterio.transform import from_origin
 
 from core.mesh import ensure_mesh_cells
 from core.models import DisplacementAcquisition, DisplacementVelocity
 
+from . import kokudo_suuchi
 from .gsi_displacement import (
     _FetchResult,
     _current_fiscal_year,
@@ -164,3 +170,31 @@ class IngestDisplacementVelocityDedupTests(TestCase):
                 fiscal_year="2031", acquisition=acquisition
             ).exists()
         )
+
+
+class KokudoSuuchiCacheDirTests(SimpleTestCase):
+    """`_cache_dir()`が`settings.RAW_DATA_DIR`から動的に解決されることを確認する。
+
+    以前は`CACHE_DIR = Path("/data/raw/ksj")`とモジュールレベルで絶対パスを
+    直書きしており、Docker Composeコンテナ内(./data:/dataマウント)以外の環境
+    ―― ローカルでのingest直接実行やCI ―― では存在しないディレクトリを指し、
+    再現不能だった。settingsを都度参照する実装に変わったことで、
+    `RAW_DATA_DIR`を設定するだけで任意の環境に追従できることを検証する。
+
+    注記: Docker Composeコンテナ内ではWORKDIR=/appの親が"/"であるため、
+    settings.RAW_DATA_DIRの既定値(BASE_DIR.parent/"data"/"raw")がたまたま
+    旧ハードコード値と同じ"/data/raw"に解決される(./data:/dataマウントと
+    整合させる意図通りの偶然の一致)。したがって「解決値が旧ハードコード値と
+    異なること」はどの実行環境でも成り立つ検証にはならない。本テストは
+    代わりに「_cache_dir()が常にsettings.RAW_DATA_DIRから導出されていること」
+    (モジュールレベル定数に固定されていないこと)を直接検証する。
+    """
+
+    def test_cache_dir_is_derived_from_settings_not_a_fixed_constant(self):
+        self.assertEqual(kokudo_suuchi._cache_dir(), settings.RAW_DATA_DIR / "ksj")
+
+    @override_settings(RAW_DATA_DIR=Path("/tmp/sinkscope-test-raw"))
+    def test_cache_dir_follows_settings_override(self):
+        # RAW_DATA_DIRを上書きすると_cache_dir()も追従する
+        # (Docker Compose環境で/data/rawへ.env経由で上書きする経路と同じ仕組み)。
+        self.assertEqual(kokudo_suuchi._cache_dir(), Path("/tmp/sinkscope-test-raw/ksj"))
