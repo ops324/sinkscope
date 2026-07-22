@@ -62,15 +62,16 @@ docs/SPEC.md §7.1で警戒した「実質、道路長の地図をハザード�
 
 | 区分 | 内容 |
 |---|---|
-| 実データ | 国土地理院 衛星SAR地盤変動測量成果、国土数値情報（地質・地盤分類・土地利用）、気象庁解析雨量、DEM、OSM道路網、国交省道路陥没オープンデータ、下水道統計 |
+| 実データ | 国土地理院 衛星SAR地盤変動測量成果、国土数値情報（土地利用）、DEM、OSM道路網、国交省道路陥没オープンデータ |
 | 合成データ（Illustrative） | 疑似管路の幾何（OSM道路センターライン上へ配置）・布設年・管種。優先度算出の手法（重み付きヒューリスティック）自体も未検証 |
+| 未実装（将来の拡張用フィールドのみ存在） | 地質・地盤分類（`GroundClass.geology_class`/`ground_classification`）、気象庁解析雨量（無償・自動・historicalを同時に満たす公式ルートが無く、当初計画から対象外化。詳細は[docs/SPEC.md](./docs/SPEC.md) §6）。下水道統計は取込対象としていない |
 | 原理的にできないこと | マンホール／単一管路単位での沈下分離、突発・局所的な陥没の予兆検知 |
 
 ## 技術スタック
 
 - バックエンド: Django + GeoDjango + PostGIS
-- フロントエンド: React + TypeScript + Vite、Mapbox GL / MapLibre、deck.gl
-- 解析: Python（GeoPandas, rasterio, scikit-learn, XGBoost, SHAP）
+- フロントエンド: React + TypeScript + Vite、MapLibre GL、deck.gl
+- 解析: Python（GeoPandas, rasterio, pandas, SciPy）
 - インフラ: Docker Compose（ローカル開発）
 
 ## ローカル開発環境

@@ -1,5 +1,4 @@
 Django>=5.0,<5.1
-djangorestframework>=3.15,<3.16
 django-cors-headers>=4.4,<5
 django-environ>=0.11,<0.12
 psycopg2-binary>=2.9,<3
@@ -9,8 +8,6 @@ shapely>=2.0,<3
 pyproj>=3.6,<4
 numpy>=1.26,<2
 pandas>=2.2,<3
-scikit-learn>=1.4,<2
-xgboost>=2.0,<3
-shap>=0.45,<1
+scipy>=1.12,<2
 openpyxl>=3.1,<4
 requests>=2.31,<3
