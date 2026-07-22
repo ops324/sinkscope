@@ -93,6 +93,23 @@ npm run dev
 - API ヘルスチェック: `http://localhost:8000/api/health/`
 - フロントエンド: `http://localhost:5173`
 
+## 再現性（Reproducibility）
+
+[docs/ASSESSMENT.md](./docs/ASSESSMENT.md) に記載した実測値（片側p値=0.9616,
+Moran's I=0.797, 道路長とのSpearman順位相関ρ=0.903）は、文書化するだけでなく、
+誰でも自分の手で再現・検証できる。
+
+```bash
+./scripts/reproduce.sh
+```
+
+開発中の`docker compose up`環境には一切触れない使い捨て環境で、コミット済みの
+入力データ（`backend/analysis/fixtures/golden_snapshot.json.gz`）から
+`build_monitor`→`generate_triage`を再実行し、得られた値が
+[docs/SNAPSHOT.md](./docs/SNAPSHOT.md) に記録した期待値と一致するかを機械的に
+照合する。入力データの来歴・既知の欠落・検証済みの実行記録は
+[docs/SNAPSHOT.md](./docs/SNAPSHOT.md) を参照。
+
 ## Future Work（本プロジェクトのスコープ外とした理由）
 
 - **自前InSAR時系列処理（Sentinel-1 / ASF HyP3・LiCSBAS）**: 国土地理院の公開成果で
