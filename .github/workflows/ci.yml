@@ -45,3 +45,35 @@ jobs:
       - name: Tear down
         if: always()
         run: docker compose down -v
+
+  # docs/ASSESSMENT.mdの実測値(p値・Moran's I・ρ)が、コミット済みgolden snapshot
+  # (docs/SNAPSHOT.md参照)から実際に再現できることを継続的に検証する。testジョブ
+  # とは別のCIランナー(VM)で動くため、docker-compose.ymlの既定ポート(5432/8000)を
+  # そのまま使ってよい(scripts/reproduce.shがローカルで使うポートずらしは、開発中の
+  # `docker compose up`と共存するためのものでCI環境では不要)。
+  reproduce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare .env
+        run: cp .env.example .env
+
+      - name: Build backend image
+        run: docker compose build backend
+
+      - name: Migrate
+        run: docker compose run --rm backend python manage.py migrate
+
+      - name: Reproduce ASSESSMENT.md metrics from golden snapshot
+        run: docker compose run --rm backend python manage.py reproduce_assessment
+
+      - name: Show backend logs on failure
+        if: failure()
+        run: docker compose logs backend db
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v

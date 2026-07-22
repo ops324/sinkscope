@@ -9,8 +9,11 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-sinkscope}
     volumes:
       - pgdata:/var/lib/postgresql/data
+    # DB_HOST_PORTはscripts/reproduce.shが専用の使い捨て環境(別Compose project名
+    # "sinkscope-reproduce")を、開発中のdb(5432番使用中)と共存させるために使う。
+    # 通常の開発では未設定のままでよく、その場合は既定の5432。
     ports:
-      - "5432:5432"
+      - "${DB_HOST_PORT:-5432}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-sinkscope}"]
       interval: 5s
@@ -23,8 +26,10 @@ services:
     volumes:
       - ./backend:/app
       - ./data:/data
+    # BACKEND_HOST_PORTの理由はdbサービスのDB_HOST_PORTと同じ
+    # (scripts/reproduce.sh参照)。
     ports:
-      - "8000:8000"
+      - "${BACKEND_HOST_PORT:-8000}:8000"
     env_file:
       - .env
     environment:

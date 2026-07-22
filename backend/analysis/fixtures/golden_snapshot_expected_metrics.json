@@ -1,0 +1,26 @@
+{
+  "_note": "docs/SNAPSHOT.md参照。この値の単一情報源はここであり、SNAPSHOT.mdやdocs/ASSESSMENT.mdの数値は本ファイルの値を人間可読に転記したものに過ぎない(analysis/management/commands/reproduce_assessment.pyが機械的にこの値と実測値を照合する)。以前p値をdocstringに固定文字列として埋め込み、検定の再実行に追随できなかった過ち(独立敵対的監査、triage/scoring.pyのモジュールdocstring参照)と同じ轍を踏まないため、値は必ずここか実行時のmetrics_jsonから読み、他の文書に固定で書き写すだけにする。",
+  "seed": 42,
+  "source_run_ids": {
+    "analysis_run": 4,
+    "triage_run": 2
+  },
+  "analysis": {
+    "in_aoi_event_count": 129,
+    "in_aoi_sewer_event_count": 30,
+    "permutation_test": {
+      "eligible_pool_size": 7082,
+      "k_sewer_cells": 25,
+      "n_permutations": 10000,
+      "observed_mean_diff_cm_per_year": 0.02161694546127846,
+      "p_value_one_sided": 0.9616,
+      "p_value_two_sided": 0.1218,
+      "morans_i": 0.7970697398773147,
+      "morans_i_expected": -0.00014122299110295156
+    }
+  },
+  "triage": {
+    "pipe_count": 51084,
+    "baseline_road_length_spearman_rho": 0.903368503464283
+  }
+}
