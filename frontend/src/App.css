@@ -22,6 +22,32 @@
   font-size: 0.85rem;
 }
 
+.module-switcher {
+  margin-top: 0.6rem;
+  display: flex;
+  gap: 0.4rem;
+}
+
+.module-switcher button {
+  background: transparent;
+  border: 1px solid #263140;
+  color: #a9b4bf;
+  font-size: 0.78rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.module-switcher button:hover {
+  background: rgba(74, 158, 255, 0.1);
+}
+
+.module-switcher button.active {
+  background: rgba(74, 158, 255, 0.18);
+  border-color: #4a9eff;
+  color: #e6edf3;
+}
+
 .app-body {
   flex: 1;
   display: flex;
@@ -150,6 +176,109 @@
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+}
+
+/* --- Triage: Illustrative バッジ・常設バナー ---
+   guardrail (a)(c): 疑似データ「だけでなく」優先度算出の手法自体が未検証であることを
+   常に視認できる形で束縛するための、専用の警告色(amber)の視覚言語。 */
+
+.illustrative-badge {
+  display: inline-block;
+  padding: 0.12rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(217, 164, 6, 0.18);
+  border: 1px solid #8a6d1a;
+  color: #d9a406;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  vertical-align: middle;
+}
+
+.illustrative-banner {
+  position: absolute;
+  top: 0.9rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(15, 20, 24, 0.9);
+  border: 1px solid #8a6d1a;
+  border-radius: 8px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.78rem;
+  color: #d9a406;
+  backdrop-filter: blur(4px);
+  max-width: min(90%, 560px);
+  text-align: center;
+}
+
+.honesty-tagline--warning {
+  border-left-color: #d9a406;
+  background: rgba(217, 164, 6, 0.08);
+}
+
+.triage-ranking-title {
+  margin: 1rem 0 0.5rem;
+  font-size: 0.85rem;
+  color: #e6edf3;
+}
+
+.triage-ranking-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.triage-ranking-row {
+  border: 1px solid #263140;
+  border-left-width: 3px;
+  border-radius: 6px;
+  padding: 0.5rem 0.65rem;
+}
+
+.triage-ranking-row--high {
+  border-left-color: #9b59b6;
+}
+
+.triage-ranking-row--medium {
+  border-left-color: rgba(155, 89, 182, 0.6);
+}
+
+.triage-ranking-row--low {
+  border-left-color: rgba(155, 89, 182, 0.3);
+}
+
+.triage-ranking-row-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.3rem;
+}
+
+.triage-tier-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #c9a8e0;
+}
+
+.triage-mesh-code {
+  font-size: 0.72rem;
+  color: #6b7681;
+}
+
+.triage-ranking-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.72rem;
+  color: #8b98a5;
 }
 
 .map-error {

@@ -1,4 +1,12 @@
-import { LAND_USE_LABELS, elevationColor, landUseColor, roadLengthColor, velocityColor } from "../map/colors";
+import {
+  LAND_USE_LABELS,
+  TIER_LABELS,
+  elevationColor,
+  landUseColor,
+  roadLengthColor,
+  tierColor,
+  velocityColor,
+} from "../map/colors";
 import type { LayerKey } from "../map/types";
 
 function rgba([r, g, b, a]: readonly [number, number, number, number]): string {
@@ -24,7 +32,35 @@ function GradientBar({
   );
 }
 
-export default function Legend({ activeLayer }: { activeLayer: LayerKey }) {
+export default function Legend({
+  activeLayer,
+  showTriageLegend = false,
+}: {
+  activeLayer: LayerKey;
+  showTriageLegend?: boolean;
+}) {
+  if (showTriageLegend) {
+    return (
+      <div className="legend">
+        <h3>
+          凡例 <span className="illustrative-badge">Illustrative</span>
+        </h3>
+        <div className="legend-categorical">
+          {Object.entries(TIER_LABELS).map(([tier, label]) => (
+            <div key={tier} className="legend-swatch-row">
+              <span className="legend-swatch" style={{ background: rgba(tierColor(tier)) }} />
+              <span>{label}</span>
+            </div>
+          ))}
+        </div>
+        <p className="legend-caveat">
+          破線＝疑似管路（架空データ）。tierは未検証のヒューリスティックによる順序であり、
+          ハザードスコアではない。
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="legend">
       <h3>凡例</h3>

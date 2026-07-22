@@ -1,20 +1,24 @@
 import { useEffect, useMemo, useState } from "react";
 import DeckGL from "@deck.gl/react";
-import { GeoJsonLayer, ScatterplotLayer } from "@deck.gl/layers";
+import { GeoJsonLayer, PathLayer, ScatterplotLayer } from "@deck.gl/layers";
+import { PathStyleExtension, type PathStyleExtensionProps } from "@deck.gl/extensions";
 import { Map } from "react-map-gl/maplibre";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 import {
   fetchEvents,
   fetchMeshSummary,
+  fetchTriagePipes,
   type EventFeatureProperties,
   type EventsResponse,
   type MeshFeatureProperties,
   type MeshSummaryResponse,
+  type TriagePipeFeatureProperties,
+  type TriagePipesResponse,
 } from "../api/client";
 import Legend from "../components/Legend";
-import { elevationColor, landUseColor, landUseLabel, roadLengthColor, velocityColor } from "./colors";
-import { LAYER_LABELS, type LayerKey } from "./types";
+import { elevationColor, landUseColor, landUseLabel, roadLengthColor, tierColor, velocityColor } from "./colors";
+import { LAYER_LABELS, type LayerKey, type ModuleView } from "./types";
 
 // 江東区・江戸川区・八潮市周辺(core/aoi.pyのDEMO_AOI_BBOXと同じ対象エリア)を初期表示。
 const INITIAL_VIEW_STATE = {
@@ -84,10 +88,20 @@ function eventTooltipText(props: EventFeatureProperties): string {
   ].join("\n");
 }
 
-export default function MonitorMap() {
+function pipeTooltipText(props: TriagePipeFeatureProperties): string {
+  return [
+    "疑似管路（Illustrative・架空データ）",
+    `メッシュ: ${props.mesh_code}`,
+    `点検優先度tier: ${props.tier ?? "データなし"}（未検証の手法によるヒューリスティック）`,
+    `架空の布設年: ${props.install_year} / 架空の管種: ${props.pipe_material}`,
+  ].join("\n");
+}
+
+export default function MonitorMap({ moduleView }: { moduleView: ModuleView }) {
   const [activeLayer, setActiveLayer] = useState<LayerKey>("velocity");
   const [meshData, setMeshData] = useState<MeshSummaryResponse | null>(null);
   const [eventsData, setEventsData] = useState<EventsResponse | null>(null);
+  const [pipesData, setPipesData] = useState<TriagePipesResponse | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -99,6 +113,16 @@ export default function MonitorMap() {
       .catch((err: unknown) => setLoadError(String(err)));
   }, []);
 
+  useEffect(() => {
+    if (moduleView === "triage" && !pipesData) {
+      fetchTriagePipes()
+        .then(setPipesData)
+        .catch((err: unknown) => setLoadError(String(err)));
+    }
+  }, [moduleView, pipesData]);
+
+  const isTriage = moduleView === "triage";
+
   const layers = useMemo(() => {
     const built = [];
 
@@ -109,13 +133,15 @@ export default function MonitorMap() {
           data: meshData.features,
           filled: true,
           stroked: true,
+          // Triageビューでは実データのメッシュ配色を淡くし、Illustrativeなパイプ
+          // レイヤーが視覚的な主役になるようにする(実データと合成データの混同防止)。
           getFillColor: (f: GeoJSON.Feature<GeoJSON.Geometry, MeshFeatureProperties>) =>
-            fillColorForLayer(activeLayer, f.properties),
+            isTriage ? [40, 44, 50, 60] : fillColorForLayer(activeLayer, f.properties),
           getLineColor: [30, 34, 38, 90] as [number, number, number, number],
           getLineWidth: 1,
           lineWidthUnits: "pixels",
-          pickable: true,
-          updateTriggers: { getFillColor: activeLayer },
+          pickable: !isTriage,
+          updateTriggers: { getFillColor: [activeLayer, isTriage] },
         }),
       );
     }
@@ -140,8 +166,33 @@ export default function MonitorMap() {
       );
     }
 
+    if (isTriage && pipesData) {
+      built.push(
+        new PathLayer<
+          GeoJSON.Feature<GeoJSON.LineString, TriagePipeFeatureProperties>,
+          PathStyleExtensionProps<GeoJSON.Feature<GeoJSON.LineString, TriagePipeFeatureProperties>>
+        >({
+          id: "synthetic-pipes",
+          data: pipesData.features,
+          getPath: (f: GeoJSON.Feature<GeoJSON.LineString, TriagePipeFeatureProperties>) =>
+            f.geometry.coordinates as [number, number][],
+          // 破線で描画し、実データの道路延長レイヤー(実線)とは明確に異なる見た目にする
+          // (疑似管路=Illustrativeであることの視覚的な常設シグナル)。
+          getColor: (f: GeoJSON.Feature<GeoJSON.LineString, TriagePipeFeatureProperties>) =>
+            tierColor(f.properties.tier),
+          getWidth: 3,
+          widthMinPixels: 1.5,
+          widthMaxPixels: 4,
+          getDashArray: [3, 2],
+          dashJustified: true,
+          extensions: [new PathStyleExtension({ dash: true })],
+          pickable: true,
+        }),
+      );
+    }
+
     return built;
-  }, [meshData, eventsData, activeLayer]);
+  }, [meshData, eventsData, pipesData, activeLayer, isTriage]);
 
   return (
     <div className="monitor-map">
@@ -151,28 +202,38 @@ export default function MonitorMap() {
         layers={layers}
         getTooltip={({ object, layer }) => {
           if (!object) return null;
-          if (layer?.id === "mesh-summary") return { text: meshTooltipText(object.properties) };
+          if (layer?.id === "mesh-summary" && !isTriage) return { text: meshTooltipText(object.properties) };
           if (layer?.id === "subsidence-events") return { text: eventTooltipText(object.properties) };
+          if (layer?.id === "synthetic-pipes") return { text: pipeTooltipText(object.properties) };
           return null;
         }}
       >
         <Map mapStyle={GSI_PALE_STYLE} />
       </DeckGL>
 
-      <div className="layer-switcher">
-        {(Object.keys(LAYER_LABELS) as LayerKey[]).map((key) => (
-          <button
-            key={key}
-            type="button"
-            className={key === activeLayer ? "active" : ""}
-            onClick={() => setActiveLayer(key)}
-          >
-            {LAYER_LABELS[key]}
-          </button>
-        ))}
-      </div>
+      {isTriage && (
+        <div className="illustrative-banner">
+          <span className="illustrative-badge">Illustrative</span>
+          疑似管路・点検優先度は架空データ・未検証の手法です（詳細は右パネル）
+        </div>
+      )}
 
-      <Legend activeLayer={activeLayer} />
+      {!isTriage && (
+        <div className="layer-switcher">
+          {(Object.keys(LAYER_LABELS) as LayerKey[]).map((key) => (
+            <button
+              key={key}
+              type="button"
+              className={key === activeLayer ? "active" : ""}
+              onClick={() => setActiveLayer(key)}
+            >
+              {LAYER_LABELS[key]}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <Legend activeLayer={activeLayer} showTriageLegend={isTriage} />
 
       {loadError && <div className="map-error">データ取得に失敗しました: {loadError}</div>}
     </div>

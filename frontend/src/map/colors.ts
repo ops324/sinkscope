@@ -96,3 +96,27 @@ export function landUseLabel(value: string | null | undefined): string {
   if (!value) return "(データなし)";
   return LAND_USE_LABELS[value] ?? `不明なコード(${value})`;
 }
+
+/**
+ * Triage点検優先度tier(高/中/低)の配色。連続スコアではなく順序尺度のtierのみを
+ * 受け取る点が重要(独立敵対的監査 guardrail (b): キャリブレーション済みに見える
+ * 数値を出さない)。実データのMonitorレイヤー(velocityColor等)とは明確に異なる
+ * 紫系(Illustrativeの識別)を使い、実データと視覚的に混同されないようにする。
+ */
+const TIER_COLORS: Record<string, RGBA> = {
+  high: [155, 89, 182, 210],
+  medium: [155, 89, 182, 140],
+  low: [155, 89, 182, 70],
+};
+const TIER_NO_DATA_COLOR: RGBA = [120, 120, 120, 90];
+
+export function tierColor(tier: string | null | undefined): RGBA {
+  if (!tier) return TIER_NO_DATA_COLOR;
+  return TIER_COLORS[tier] ?? TIER_NO_DATA_COLOR;
+}
+
+export const TIER_LABELS: Record<string, string> = {
+  high: "高（相対的な点検候補）",
+  medium: "中",
+  low: "低",
+};

@@ -15,7 +15,7 @@ SinkScope は1プロダクト・2モジュール構成を取る。
 - **Triage**：Monitor の実成果を点検優先度に翻訳する意思決定支援層。疑似管路データを
   ここに限定し、`Illustrative` バッジで実データと区別する（設計方針は README 参照）。
 
-本書は主に Monitor のデータ基盤（実装済み）を扱う。Triage の詳細設計は該当PRで追記する。
+本書は主に Monitor のデータ基盤（実装済み）を扱う。Triage の詳細設計は第9章を参照。
 
 ---
 
@@ -196,8 +196,9 @@ README の表を参照。本書ではモデル単位で対応関係を明記す�
 
 - **実データ**：`DisplacementVelocity`、`GroundClass.land_use_class`/`elevation_m`、
   `RoadExposure`、`SubsidenceEvent` はすべて上記5データソースからの実測・実取得値。
-- **合成データ**：疑似管路（Triageモジュールで実装予定、`SyntheticPipe`相当のモデルは
-  未実装）。
+- **合成データ**：疑似管路（`triage.SyntheticPipe`、実装済み）。OSM道路センターライン上へ
+  合成配置し、布設年・管種はseed固定の架空値。優先度算出のヒューリスティック手法自体も
+  未検証であり、`Illustrative`バッジで実データと厳密に区別する（詳細は第9章）。
 - **InSARラスタの来歴（`DisplacementAcquisition`）**：GSIの変位速度APIには年度を選択する
   手段が無いため（4.1章）、取込のたびに取得した GeoTIFF の SHA-256（`content_sha256`、
   一意制約）と取得時刻（`retrieved_at`）を監査記録として残す。`fiscal_year`は
@@ -356,3 +357,85 @@ DIAS/XRAINは長期メンテナンス中で復旧時期未定、気象庁の`obs
 
 README.md の「参考文献・出典」を参照。本書に記載した実装固有の出典（`layers_for_sar.txt`、
 `demtile.html`、KSJ datalist ページ等）はコード中のdocstringに直接記載している。
+
+---
+
+## 9. Triage（意思決定支援層）の詳細設計
+
+Monitor（第2〜7章）は100%実データで完結する。Triage は、その実成果を自治体の
+点検優先度判断に翻訳する意思決定支援層であり、`backend/triage/` に実装する。
+独立敵対的レビューを経て、以下の設計とした。
+
+### 9.1 モデル(`backend/triage/models.py`)
+
+| モデル | 主な役割 |
+|---|---|
+| `SyntheticPipe` | 疑似管路(Illustrative)。geom(LineString)はOSM道路センターラインをそのまま流用し、道路網上への合成配置とする。布設年・管種はseed固定の疑似乱数による架空値 |
+| `TriageRun` | `generate_triage`コマンド1回の実行記録(analysis.AnalysisRunの姉妹モデル)。重み・パイプ数・自己点検の相関・手法未検証の明示をmetrics_jsonに記録 |
+| `MeshPriority` | メッシュ単位の優先度(analysis.MeshSummaryの姉妹モデル)。内部計算値`priority_index`と、公開用の`tier`(高/中/低)、構成実測値の分解を保持 |
+
+### 9.2 優先度算出の誠実性設計(`backend/triage/scoring.py`)
+
+回帰・分類モデルの学習は一切行わない。事前に固定した重み(`DEFAULT_WEIGHTS`:
+沈下シグナル0.4・道路曝露0.3・過去事案0.3)による線形結合で`priority_index`を算出し、
+分位ベースで`tier`(高/中/低)に離散化する。
+
+この設計は、独立敵対的監査の以下の指摘を受けて確定した:
+
+- **手法自体の免責(guardrail a)**：`Illustrative`バッジは、疑似管路という「データ」
+  だけでなく、優先度算出という「手法」自体が未検証であることも明示しなければならない。
+  本AOI・本データの空間パーミュテーション検定(第7章)は「陥没(下水道原因)箇所は
+  変位速度がより負に偏る」という仮説を**支持しなかった**(片側p=0.962)。したがって
+  沈下シグナル項の重みは検証済みの予測係数ではなく事前の業務ヒューリスティックに
+  過ぎないことを、`TriageRun.metrics_json.method_validated`(常にFalse)と
+  `method_validation_note`、APIの`disclaimers`、フロントの常設バッジ・パネルの
+  4箇所で一貫して明示する。
+- **連続スコアを公開しない(guardrail b)**：`priority_index`はAPIでは一切返さない。
+  `/api/triage/pipes/`・`/api/triage/ranking/`は`tier`のみを公開し、構成要素
+  (velocity_cm_per_year・road_length_m・sewer_event_count等)は実測値のまま分解表示する。
+- **合成入力への視覚的束縛(guardrail c)**：フロントの疑似管路レイヤーは破線・紫系の
+  専用配色(`tierColor`)で描画し、Monitorの実データレイヤー(道路延長の実線・青系配色)
+  とは明確に区別する。
+- **バッジを剥がすエクスポートを作らない(guardrail d)**：本実装にPDF/CSVエクスポート
+  機能は存在しない。将来追加する場合も、`Illustrative`バッジと免責文を含まない出力は
+  提供しないこと。
+- **架空属性の明示(guardrail e)**：`pipe_material`の選択肢はすべて「(例示)」を付した
+  ラベルとし(`PIPE_MATERIAL_CHOICES`)、実在の管路分類体系と誤認されないようにする。
+
+### 9.3 自己点検：道路長ベースラインとのSpearman順位相関(実測結果)
+
+docs/SPEC.md §7.1は、per-cell連続の「期待陥没率」choroplethについて「実質『道路長の
+地図』をハザード色で偽装するだけになりかねない」という懸念から却下した。Triageの
+優先度ヒューリスティックが同じ問題を抱えていないかを自己点検するため、
+`priority_index`と`road_length_m`単独ランキングとのSpearman順位相関
+(`baseline_road_length_spearman_rho`)を毎回算出し、`TriageRun.metrics_json`と
+APIレスポンスの両方に必ず記録する(`triage/scoring.py::baseline_correlation`)。
+
+**実測結果(本AOI、デフォルト重み、seed=42)**：ρ = **0.903**。
+
+この値は高く、現状のデフォルト重みでは、優先度ランキングが「道路長だけの単純な
+ランキング」にかなり近いことを意味する。原因として、適格プール(road_length_m>0)内で
+`past_events`(下水道原因の陥没報告数)自体が道路曝露と機構的に相関しやすいこと
+(道路が長い/交通量が多いメッシュほど陥没が報告される機会も多い。第2章
+`RoadExposure`のdocstring参照)が挙げられる。この結果は仮説通りの成功を示すものでは
+なく、Monitorの否定的な検定結果(第7章)と同じ精神で、そのまま正直に公表する。
+将来、重み付けの見直しや実管路特徴量の追加によってこの相関を下げられるかは
+未検証の課題として残す(商用化ロードマップ「予測価値の実証」参照)。
+
+### 9.4 API(`backend/api/views.py`)
+
+- `GET /api/triage/pipes/`：疑似管路のLineString GeoJSON。各featureの`properties`に
+  `illustrative: true`・`method_validated: false`・`tier`・架空の`install_year`/
+  `pipe_material`を含む。連続スコアは含まない。
+- `GET /api/triage/ranking/`：メッシュ単位の優先度ランキング。`tier`と構成実測値の
+  分解、`metrics`(`method_validated`・`method_validation_note`・
+  `baseline_road_length_spearman_rho`・パイプ数)、Triage専用`disclaimers`を返す。
+  `priority_index`はレスポンスに一切含まれない。
+
+### 9.5 コマンド(`generate_triage`)
+
+`build_monitor`と同型のオーケストレーション(`backend/triage/build.py`)。疑似管路は
+Overpass APIへの再アクセスを避けるため、既存分があれば`--regenerate-pipes`を
+指定しない限り再取得しない(冪等)。同一seedなら疑似管路の生成・優先度算出とも
+完全に再現する(`triage/tests.py`で決定性を検証)。
+

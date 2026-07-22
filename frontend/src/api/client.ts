@@ -1,8 +1,12 @@
-// backend/api/ の3エンドポイントに対するfetchヘルパ。
+// backend/api/ のエンドポイントに対するfetchヘルパ。
 //
 // mesh/summary と events は「実データ」をそのまま返す(予測・スコアは含まない)。
 // analysis/run/latest だけが推論結果(付録検定・n実測値)を返し、HonestyPanelが
 // これを直接描画する。バックエンド側の設計意図は backend/api/views.py 参照。
+//
+// triage/pipes と triage/ranking はTriage(意思決定支援層)のIllustrativeな
+// レスポンス。連続スコア(priority_index)は型にも存在しない――tier(高/中/低)のみを
+// 公開する(独立敵対的監査 guardrail (b))。
 
 export type MeshFeatureProperties = {
   mesh_code: string;
@@ -82,6 +86,55 @@ export type AnalysisRunLatestResponse =
       disclaimers: string[];
     };
 
+// Triage: 順序尺度(高/中/低)のみ。priority_index等の連続スコアは型に存在しない。
+export type TriageTier = "low" | "medium" | "high";
+
+export type TriagePipeFeatureProperties = {
+  illustrative: true;
+  method_validated: false;
+  mesh_code: string;
+  install_year: number;
+  pipe_material: string;
+  tier: TriageTier | null;
+};
+
+export type TriagePipesResponse = {
+  type: "FeatureCollection";
+  run: { id: number; created_at: string } | null;
+  features: GeoJSON.Feature<GeoJSON.LineString, TriagePipeFeatureProperties>[];
+  disclaimers: string[];
+};
+
+export type TriageRankingRow = {
+  mesh_code: string;
+  tier: TriageTier;
+  velocity_cm_per_year: number | null;
+  road_length_m: number | null;
+  sewer_event_count: number;
+  pipe_count: number;
+};
+
+export type TriageMetrics = {
+  method_validated: false;
+  method_validation_note: string;
+  pipe_count: number;
+  eligible_mesh_count: number;
+  baseline_road_length_spearman_rho: number | null;
+};
+
+export type TriageRankingResponse =
+  | { exists: false; ranking: []; disclaimers: string[] }
+  | {
+      exists: true;
+      run_id: number;
+      created_at: string;
+      seed: number;
+      weights: Record<string, number> | null;
+      metrics: TriageMetrics;
+      ranking: TriageRankingRow[];
+      disclaimers: string[];
+    };
+
 async function getJSON<T>(path: string): Promise<T> {
   const response = await fetch(path);
   if (!response.ok) {
@@ -101,4 +154,12 @@ export function fetchEvents(causeFacility?: string): Promise<EventsResponse> {
 
 export function fetchAnalysisRunLatest(): Promise<AnalysisRunLatestResponse> {
   return getJSON("/api/analysis/run/latest/");
+}
+
+export function fetchTriagePipes(): Promise<TriagePipesResponse> {
+  return getJSON("/api/triage/pipes/");
+}
+
+export function fetchTriageRanking(): Promise<TriageRankingResponse> {
+  return getJSON("/api/triage/ranking/");
 }
