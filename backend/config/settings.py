@@ -91,3 +91,10 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # （EPSG:6677、関東域）へ都度投影する。対象エリアが変わる場合はcore/mesh.pyの
 # PROJECTED_SRIDも合わせて見直すこと。
 SINKSCOPE_STORAGE_SRID = 6668
+
+# ingestスクリプトが生データ(zip/GeoTIFF等)をダウンロードキャッシュする先。
+# Docker Compose環境では./data:/dataがマウントされるため既定値/data/rawと
+# 一致させる(docker-compose.yml参照)。コンテナ外でingestを直接実行する場合
+# (ローカル開発・CI等)は、絶対パス直書きを避けリポジトリ相対のdata/rawへ
+# フォールバックすることで、環境を問わず再現できるようにする。
+RAW_DATA_DIR = Path(env("RAW_DATA_DIR", default=str(BASE_DIR.parent / "data" / "raw")))

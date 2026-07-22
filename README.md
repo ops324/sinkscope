@@ -1,5 +1,7 @@
 # SinkScope
 
+[![CI](https://github.com/ops324/sinkscope/actions/workflows/ci.yml/badge.svg)](https://github.com/ops324/sinkscope/actions/workflows/ci.yml)
+
 地盤沈下モニタリング＆下水道点検トリアージ WebGIS
 
 > 検出科学（陥没そのものの検知）では競わない ― そこはNTT等の研究開発の領分。

@@ -8,6 +8,12 @@ shapely>=2.0,<3
 pyproj>=3.6,<4
 numpy>=1.26,<2
 pandas>=2.2,<3
+# 直接importはしていないが、pandas.Series.corr(method="spearman")が内部で
+# scipy.stats.spearmanrを遅延importする(pandas/core/nanops.py::get_corr_func)。
+# triage/scoring.py::baseline_correlation（優先度と道路長のSpearman順位相関=
+# 誠実性の中核自己点検指標）が実行時にこれへ依存するため、`import scipy`が
+# コード中に無いことをもって不要と早合点しないこと(実際にpip削除しテスト実行
+# して`ModuleNotFoundError: No module named 'scipy'`を確認済み)。
 scipy>=1.12,<2
 openpyxl>=3.1,<4
 requests>=2.31,<3

@@ -19,6 +19,7 @@ from pathlib import Path
 
 import geopandas as gpd
 import requests
+from django.conf import settings
 from django.contrib.gis.geos import Polygon
 from shapely import wkb
 
@@ -34,7 +35,18 @@ LAND_USE_URL = (
     f"https://nlftp.mlit.go.jp/ksj/gml/data/L03-b/L03-b-21/"
     f"L03-b-21_{PRIMARY_MESH_CODE}-jgd2011_GML.zip"
 )
-CACHE_DIR = Path("/data/raw/ksj")
+
+
+def _cache_dir() -> Path:
+    """生データのキャッシュ先(settings.RAW_DATA_DIR/ksj)。
+
+    以前は絶対パス"/data/raw/ksj"を直書きしており、コンテナ外(ローカル開発・CI)
+    では存在しないディレクトリを指すため再現不能だった。settings.RAW_DATA_DIR
+    (既定はリポジトリ直下data/raw、Docker Compose環境では/data/rawへ.envで
+    上書き)を都度参照することで、環境を問わず一貫させる。関数化しているのは、
+    Django設定が読み込まれる前にモジュールレベルで評価されるのを避けるため。
+    """
+    return settings.RAW_DATA_DIR / "ksj"
 
 
 def _download_or_cached(url: str, cache_path: Path) -> bytes:
@@ -49,7 +61,7 @@ def _download_or_cached(url: str, cache_path: Path) -> bytes:
 
 
 def _load_land_use_geodataframe() -> gpd.GeoDataFrame:
-    zip_bytes = _download_or_cached(LAND_USE_URL, CACHE_DIR / f"L03-b-21_{PRIMARY_MESH_CODE}.zip")
+    zip_bytes = _download_or_cached(LAND_USE_URL, _cache_dir() / f"L03-b-21_{PRIMARY_MESH_CODE}.zip")
     archive = zipfile.ZipFile(io.BytesIO(zip_bytes))
     geojson_name = next(n for n in archive.namelist() if n.endswith(".geojson"))
     return gpd.read_file(io.BytesIO(archive.read(geojson_name)))
