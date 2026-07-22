@@ -7,6 +7,8 @@
 """
 from __future__ import annotations
 
+import re
+
 from django.conf import settings
 from django.contrib.gis.geos import Polygon
 
@@ -16,9 +18,26 @@ PROJECTED_SRID = 6677  # JGD2011 / Japan Plane Rectangular CS IX（関東域）
 STORAGE_SRID = settings.SINKSCOPE_STORAGE_SRID
 MESH_SIZE_M = 250
 
+_MESH_CODE_RE = re.compile(r"250m-(-?\d+)-(-?\d+)")
+
 
 def _mesh_code(ix: int, iy: int) -> str:
     return f"250m-{ix}-{iy}"
+
+
+def mesh_indices_from_code(mesh_code: str) -> tuple[int, int]:
+    """mesh_code("250m-{ix}-{iy}")から格子インデックス(ix, iy)を復元する。_mesh_codeの逆関数。
+
+    本AOI(東京都・埼玉県、関東域IX系)は投影原点(北緯36度・東経139度50分)より南西に
+    位置するため、ix・iyは共に負の値を取る(例: "250m--13--134")。単純な"-"分割は
+    空文字列を生み出して壊れるため(["250m","","13","","134"])、符号付き整数を
+    アンカー付き正規表現で厳密にパースする(analysis/permutation.pyのMoran's I計算が
+    これに依存する)。
+    """
+    match = _MESH_CODE_RE.fullmatch(mesh_code)
+    if match is None:
+        raise ValueError(f"不正なmesh_code形式です: {mesh_code!r}")
+    return int(match.group(1)), int(match.group(2))
 
 
 def mesh_indices_for_point(x: float, y: float) -> tuple[int, int]:

@@ -15,11 +15,24 @@ n < PERMUTATION_TEST_MIN_N（groundtruth.py参照）の場合は build.py がこ
 であり、実際の点検・報告強度（管理者区分ごとの報告完全性の違い等）までは
 再現していない。これは「陥没が起きる場所」と「陥没が報告される場所」を区別
 できないという、本プロジェクト全体の限界（docs/SPEC.md §5）の一部である。
+
+付記（空間自己相関への対応方針）：上記の一様シャッフルnullは各適格セルを交換可能
+（i.i.d.）とみなすが、InSAR変位速度は空間的に滑らか（隣接セル間で似た値を取る）で
+あり、この前提は厳密には成り立たない。独立敵対的監査の結論に基づき、本検定は
+一様null自体は変更せず、代わりに(1)自己相関の強さを示すMoran's I診断
+（morans_i_velocity）を付録として開示し、(2)一様p値は「自己相関を無視した
+反保守的な下限値（真のp値はこれ以上）」であることを結果に明記する。空間構造を
+保存した独自の補正null（トーラス並進等）は採用しない：本AOIのように小さく穴の
+多い母集団では、そうした補正が有効配置を内部の密な領域に偏らせ、null分散を
+かえって狭めるという未定量のバイアスを持ち込みうるため（設計と却下理由の詳細は
+docs/SPEC.md §7参照）。
 """
 from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+
+from core.mesh import mesh_indices_from_code
 
 from .groundtruth import PERMUTATION_TEST_MIN_N
 
@@ -46,6 +59,58 @@ def eligible_pool(frame: pd.DataFrame) -> pd.DataFrame:
 
 def _mean_diff(sample_mask: np.ndarray, velocity: np.ndarray) -> float:
     return float(velocity[sample_mask].mean() - velocity[~sample_mask].mean())
+
+
+def _lattice_coords(pool: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
+    """適格プールの各セルについて、mesh_codeから格子インデックス(ix, iy)を復元する。
+
+    本AOIではix・iyとも負の値を取る（core.mesh.mesh_indices_from_codeのdocstring参照）。
+    """
+    codes = pool["mesh_code"].to_numpy()
+    ix = np.empty(len(codes), dtype=np.int64)
+    iy = np.empty(len(codes), dtype=np.int64)
+    for i, code in enumerate(codes):
+        ix[i], iy[i] = mesh_indices_from_code(code)
+    return ix, iy
+
+
+def morans_i_velocity(pool: pd.DataFrame) -> float | None:
+    """適格プールの変位速度に対する大域Moran's I（ルーク隣接：|Δix|+|Δiy|==1）。
+
+    純粋に記述的な自己相関診断であり、有意性判定やnullの補正には使わない
+    （独立敵対的監査の結論：小規模で穴の多い本AOIでは、Iに有意性を付与したり
+    これを用いてnullを補正したりすると、未定量のバイアスを持ち込みかねないため）。
+    自己相関がなければ期待値は-1/(n-1)。Iがこれより十分大きければ正の自己相関が
+    あり、本検定が用いる一様シャッフルnull（交換可能性を仮定）が過小分散である
+    ＝一様p値が反保守的な下限値に過ぎないことの裏付けとなる。
+
+    隣接ペアが存在しない、または速度の分散がゼロの場合はNoneを返す。
+    """
+    velocity = pool["velocity_cm_per_year"].to_numpy(dtype=float)
+    n = len(velocity)
+    if n < 2:
+        return None
+
+    z = velocity - velocity.mean()
+    denom = float((z * z).sum())
+    if denom == 0.0:
+        return None
+
+    ix, iy = _lattice_coords(pool)
+    index = {(int(a), int(b)): i for i, (a, b) in enumerate(zip(ix, iy))}
+
+    numerator = 0.0
+    s0 = 0
+    for i, (a, b) in enumerate(zip(ix, iy)):
+        for da, db in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            j = index.get((int(a) + da, int(b) + db))
+            if j is not None:
+                numerator += z[i] * z[j]
+                s0 += 1
+
+    if s0 == 0:
+        return None
+    return float((n / s0) * (numerator / denom))
 
 
 def run_permutation_test(
@@ -93,6 +158,9 @@ def run_permutation_test(
     p_value_one_sided = float(np.mean(null_stats <= observed_stat))
     p_value_two_sided = float(np.mean(np.abs(null_stats) >= abs(observed_stat)))
 
+    morans_i = morans_i_velocity(pool)
+    morans_i_expected = -1.0 / (n - 1) if n > 1 else None
+
     return {
         "skipped": False,
         "hypothesis": "陥没(下水道原因)を含むセルは、含まないセルより変位速度が負に偏る",
@@ -106,4 +174,38 @@ def run_permutation_test(
         "p_value_two_sided": p_value_two_sided,
         "underpowered": k < PERMUTATION_TEST_MIN_N,
         "limitation_note": LIMITATION_NOTE,
+        "morans_i": morans_i,
+        "morans_i_expected": morans_i_expected,
+        "p_value_interpretation": _p_value_interpretation(observed_stat, morans_i, morans_i_expected),
     }
+
+
+def _p_value_interpretation(
+    observed_stat: float, morans_i: float | None, morans_i_expected: float | None
+) -> str:
+    """一様シャッフルp値を「下限値」として解釈するための平易な注記文を組み立てる。
+
+    独立敵対的監査の結論に基づき、空間構造を保存した独自の補正null（トーラス並進等）は
+    採用せず、一様p値をそのまま結果とした上で、その限界を正直に開示する方針を取る
+    （このモジュールのdocstring「付記」参照）。
+    """
+    base = (
+        "この片側p値は、隣接セル間で変位速度が似た値を取る空間自己相関を無視した"
+        "一様シャッフルによるものである。自己相関があると独立な標本数を実際より"
+        "多く見積もってしまうため、このp値は反保守的な下限値に過ぎず、真のp値は"
+        "これ以上と考えられる。"
+    )
+    if morans_i is not None and morans_i_expected is not None and morans_i > morans_i_expected:
+        base += (
+            f"実際にMoran's I（{morans_i:.3f}）は自己相関なしの期待値"
+            f"（{morans_i_expected:.3f}）を上回っており、この懸念は裏付けられている。"
+        )
+
+    if observed_stat < 0:
+        base += "観測差は仮説の方向（陥没セルがより沈下側）と一致している。"
+    else:
+        base += (
+            "観測差は仮説の方向とは逆（陥没セルはむしろ隆起側）であり、"
+            "空間自己相関を考慮したとしても結論（仮説不支持）は変わらない。"
+        )
+    return base

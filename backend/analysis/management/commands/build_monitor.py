@@ -35,7 +35,17 @@ class Command(BaseCommand):
             self.stdout.write(
                 self.style.SUCCESS(
                     f"付録検定: 観測差={perm['observed_mean_diff_cm_per_year']:.4f} cm/年, "
-                    f"片側p値={perm['p_value_one_sided']:.4f}, 両側p値={perm['p_value_two_sided']:.4f} "
+                    f"片側p値={perm['p_value_one_sided']:.4f}（自己相関を無視した下限値）, "
+                    f"両側p値={perm['p_value_two_sided']:.4f} "
                     f"(k={perm['k_sewer_cells']}, underpowered={perm['underpowered']})"
                 )
             )
+            morans_i = perm.get("morans_i")
+            morans_i_expected = perm.get("morans_i_expected")
+            if morans_i is not None and morans_i_expected is not None:
+                self.stdout.write(
+                    f"  空間自己相関診断（Moran's I）: {morans_i:.4f}"
+                    f"（自己相関なしの期待値 {morans_i_expected:.4f}。記述的診断であり、"
+                    "有意性検定やnull補正には用いない）"
+                )
+            self.stdout.write(f"  {perm['p_value_interpretation']}")

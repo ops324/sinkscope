@@ -51,6 +51,14 @@ export type PermutationTestResult =
       p_value_two_sided: number;
       underpowered: boolean;
       limitation_note: string;
+      // 空間自己相関の記述的診断（有意性検定・null補正には用いない）。
+      // 隣接セル間で変位速度が似た値を取る度合いを示す大域Moran's I。
+      // 自己相関なしの期待値は-1/(n-1)。データ不足等でNoneになりうる。
+      morans_i: number | null;
+      morans_i_expected: number | null;
+      // p_value_one_sided/two_sidedが「空間自己相関を無視した反保守的な下限値」で
+      // あることを平易に説明する一文（backend/analysis/permutation.py参照）。
+      p_value_interpretation: string;
     };
 
 export type AnalysisRunMetrics = {

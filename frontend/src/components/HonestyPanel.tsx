@@ -6,6 +6,10 @@ function formatPValue(p: number): string {
   return p < 0.001 ? "<0.001" : p.toFixed(3);
 }
 
+function formatMoransI(value: number | null): string {
+  return value === null ? "算出不能" : value.toFixed(3);
+}
+
 export default function HonestyPanel() {
   const [data, setData] = useState<AnalysisRunLatestResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -46,11 +50,11 @@ export default function HonestyPanel() {
               <p className="permutation-title">付録：空間パーミュテーション検定</p>
               <p className="honesty-hypothesis">仮説: {data.metrics.permutation_test.hypothesis}</p>
               <div className="metric-row">
-                <span>片側p値</span>
+                <span>片側p値（自己相関を無視した下限値）</span>
                 <strong>{formatPValue(data.metrics.permutation_test.p_value_one_sided)}</strong>
               </div>
               <div className="metric-row">
-                <span>両側p値</span>
+                <span>両側p値（参考）</span>
                 <strong>{formatPValue(data.metrics.permutation_test.p_value_two_sided)}</strong>
               </div>
               <div className="metric-row">
@@ -60,6 +64,16 @@ export default function HonestyPanel() {
                   {data.metrics.permutation_test.underpowered ? "（underpowered）" : ""}
                 </strong>
               </div>
+              <div className="metric-row">
+                <span>空間自己相関診断（Moran&apos;s I）</span>
+                <strong>
+                  {formatMoransI(data.metrics.permutation_test.morans_i)}
+                  {data.metrics.permutation_test.morans_i_expected !== null
+                    ? `（無相関の期待値 ${data.metrics.permutation_test.morans_i_expected.toFixed(3)}）`
+                    : ""}
+                </strong>
+              </div>
+              <p className="honesty-caveat">{data.metrics.permutation_test.p_value_interpretation}</p>
               <p className="honesty-caveat">{data.metrics.permutation_test.limitation_note}</p>
             </div>
           )}
