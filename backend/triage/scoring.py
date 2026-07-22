@@ -9,13 +9,18 @@
   1. 学習・回帰は一切行わない。DEFAULT_WEIGHTSはデータから推定した係数ではなく、
      事前に固定した業務ヒューリスティックの重みである。
 
-  2. 本プロジェクト自身のパーミュテーション検定(analysis/permutation.py)は
-     「陥没(下水道原因)を含むセルは、含まないセルより変位速度が負に偏る」という
-     仮説を支持しなかった(片側p=0.962、両側p=0.122。docs/SPEC.md §7.3)。
-     したがって沈下シグナル項(subsidence_signal)は検証済みの予測子ではなく、
-     あくまで「一般的に地盤変位は点検対象を選ぶ際の考慮要素になり得る」という
-     事前の業務知識に基づく重み付けに過ぎない。METHOD_VALIDATED=Falseとして
-     常に明示する。
+  2. 本プロジェクト自身のパーミュテーション検定(analysis/permutation.py)の結果は
+     method_validation_note()がAnalysisRunの最新値からその場で要約する(具体的な
+     p値をここに固定文字列として書かない。将来AOI拡大や年度蓄積で検定が再実行
+     された際に、この docstring だけが古い数値を残すという同じ過ちを繰り返さない
+     ため。直近の実測は docs/SPEC.md §7.3 参照)。したがって沈下シグナル項
+     (subsidence_signal)は検証済みの予測子ではなく、あくまで「一般的に地盤変位は
+     点検対象を選ぶ際の考慮要素になり得る」という事前の業務知識に基づく重み付けに
+     過ぎない。METHOD_VALIDATED=Falseとして常に明示する。
+
+     なお、subsidence_signalはMonitor側が精度限界を理由に「セル単位の符号(沈下/
+     隆起)は解釈しない」としている同じ値の符号を使う(api/views.py DISCLAIMERS参照)。
+     この一貫しない扱いは隠さずapi/views.py `_triage_disclaimers()`で明示する。
 
   3. 連続値priority_indexをAPIで生の「スコア」として公開しない。必ずassign_tiers()
      で順序尺度のtier(high/medium/low、分位ベース)に離散化してから公開する
@@ -33,18 +38,27 @@ from __future__ import annotations
 
 import pandas as pd
 
-# 検定は「陥没箇所は変位速度がより負に偏る」仮説を支持しなかった(片側p=0.962)。
 # 将来AOI拡大や年度蓄積でnが確保され再検証されるまでFalseのまま
 # (triage.models.METHOD_VALIDATEDと一致させること)。
 METHOD_VALIDATED = False
-METHOD_VALIDATION_NOTE = (
-    "本ランキングの手法は未検証である。本プロジェクト自身の空間パーミュテーション"
-    "検定は「陥没(下水道原因)箇所は変位速度がより負に偏る」という仮説を支持しなかった"
-    "(片側p=0.962、両側p=0.122、docs/SPEC.md §7.3)。したがって沈下シグナル項の重みは"
-    "検証済みの予測係数ではなく、事前の業務ヒューリスティックに過ぎない。本ランキングは"
-    "点検ワークリストがどう見え・どう振る舞うかのUI実証であり、この地域が実際に"
-    "高優先度であることを統計的に示すものではない。"
-)
+
+
+def method_validation_note(permutation_summary_sentence: str) -> str:
+    """TriageRun.metrics_jsonへ記録する免責文を組み立てる。
+
+    以前はp値(片側p=0.962等)を固定文字列として持っていたが、Monitor側の検定が
+    再実行され結果が変わっても追随できなかった(独立敵対的監査の指摘)。
+    permutation_summary_sentenceはanalysis.permutation.summarize_result()が
+    その場で生成した最新の要約文であり、呼び出し側(triage/build.py)が
+    最新のAnalysisRunから取得して渡す。
+    """
+    return (
+        f"本ランキングの手法は未検証である。{permutation_summary_sentence}"
+        "したがって沈下シグナル項の重みは検証済みの予測係数ではなく、事前の業務"
+        "ヒューリスティックに過ぎない。本ランキングは点検ワークリストがどう見え・"
+        "どう振る舞うかのUI実証であり、この地域が実際に高優先度であることを"
+        "統計的に示すものではない。"
+    )
 
 DEFAULT_WEIGHTS = {
     "subsidence_signal": 0.4,  # |min(velocity_cm_per_year, 0)| (沈下方向のみ)

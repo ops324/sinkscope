@@ -16,6 +16,7 @@ from unittest.mock import patch
 
 from django.test import TestCase
 
+from analysis.models import AnalysisRun
 from core.mesh import ensure_mesh_cells
 from core.models import DisplacementVelocity, RoadExposure, SubsidenceEvent
 
@@ -121,6 +122,19 @@ class TriageBuildTests(TestCase):
             location_text="テストイベント",
             cause_facility="下水道",
         )
+        # method_validation_noteはMonitorの最新AnalysisRunからその場で組み立てられる
+        # (独立敵対的監査の指摘: 以前はp値を固定文字列で持っており、Monitorの検定が
+        # 再実行されても追随しなかった)。ここでは「仮説不支持」のAnalysisRunを用意し、
+        # その結果がTriage側の免責文に正しく反映されることを検証する。
+        AnalysisRun.objects.create(
+            fiscal_year="2025",
+            metrics_json={
+                "permutation_test": {
+                    "skipped": False,
+                    "p_value_one_sided": 0.962,
+                }
+            },
+        )
 
     def test_run_records_method_disclaimer_and_baseline_correlation(self):
         elements = _fake_road_elements(self.cells)
@@ -129,7 +143,8 @@ class TriageBuildTests(TestCase):
 
         self.assertIsInstance(run_obj, TriageRun)
         self.assertFalse(run_obj.metrics_json["method_validated"])
-        self.assertIn("支持しなかった", run_obj.metrics_json["method_validation_note"])
+        self.assertIn("支持しませんでした", run_obj.metrics_json["method_validation_note"])
+        self.assertIn("0.962", run_obj.metrics_json["method_validation_note"])
         self.assertIn("baseline_road_length_spearman_rho", run_obj.metrics_json)
         self.assertGreater(run_obj.metrics_json["pipe_count"], 0)
 
@@ -137,6 +152,27 @@ class TriageBuildTests(TestCase):
         self.assertGreater(priorities.count(), 0)
         for p in priorities:
             self.assertIn(p.tier, {"low", "medium", "high"})
+
+    def test_method_disclaimer_reflects_latest_monitor_run_not_a_fixed_string(self):
+        # Monitorの検定が再実行され結果が変われば(例: 仮説を支持する方向のp値)、
+        # Triage側の免責文もその場で追随することを確認する
+        # (「片側p=0.962」の固定文字列だった過去のリグレッションを防ぐ回帰テスト)。
+        AnalysisRun.objects.create(
+            fiscal_year="2026",
+            metrics_json={
+                "permutation_test": {
+                    "skipped": False,
+                    "p_value_one_sided": 0.01,
+                }
+            },
+        )
+        elements = _fake_road_elements(self.cells)
+        with patch("triage.pipes.fetch_roads", return_value=elements):
+            run_obj = run_triage(seed=42)
+
+        note = run_obj.metrics_json["method_validation_note"]
+        self.assertIn("支持しました", note)
+        self.assertIn("0.010", note)
 
     def test_existing_pipes_are_reused_without_refetch(self):
         elements = _fake_road_elements(self.cells)

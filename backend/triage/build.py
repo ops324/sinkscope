@@ -8,7 +8,9 @@
   3. 優先度ヒューリスティックを適用してtierを算出する(回帰・分類モデルの学習は
      一切行わない。triage/scoring.py参照)。
   4. road_length単独ベースラインとのSpearman順位相関を算出する。
-  5. 重み・パイプ数・相関・method_validated=Falseと免責文をTriageRunに記録し、
+  5. 最新AnalysisRunのMonitor検定結果からmethod_validation_noteをその場で組み立て
+     (ハードコードされたp値の陳腐化を防ぐ。analysis.permutation.summarize_result参照)、
+     重み・パイプ数・相関・method_validated=Falseと併せてTriageRunに記録し、
      MeshPriorityをbulk書き込みする(1回の呼び出しで新規run)。
 """
 from __future__ import annotations
@@ -18,16 +20,18 @@ import math
 from django.db import transaction
 
 from analysis.features import build_summary_frame
+from analysis.models import AnalysisRun
+from analysis.permutation import summarize_result as summarize_permutation_result
 
 from .models import MeshPriority, SyntheticPipe, TriageRun
 from .pipes import generate_synthetic_pipes
 from .scoring import (
     DEFAULT_WEIGHTS,
     METHOD_VALIDATED,
-    METHOD_VALIDATION_NOTE,
     assign_tiers,
     baseline_correlation,
     compute_priority_index,
+    method_validation_note,
 )
 
 
@@ -68,13 +72,18 @@ def run(
     scored = assign_tiers(scored)
     correlation = baseline_correlation(scored)
 
+    latest_analysis_run = AnalysisRun.objects.order_by("-created_at").first()
+    permutation_sentence = summarize_permutation_result(
+        latest_analysis_run.metrics_json if latest_analysis_run else {}
+    )
+
     with transaction.atomic():
         run_obj = TriageRun.objects.create(
             seed=seed,
             params_json={"weights": weights},
             metrics_json={
                 "method_validated": METHOD_VALIDATED,
-                "method_validation_note": METHOD_VALIDATION_NOTE,
+                "method_validation_note": method_validation_note(permutation_sentence),
                 "pipe_count": pipe_count,
                 "eligible_mesh_count": len(scored),
                 "baseline_road_length_spearman_rho": correlation,

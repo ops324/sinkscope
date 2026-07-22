@@ -11,20 +11,27 @@ mesh_summary / events は「実データの集約」「実陥没イベント」�
 
 triage_pipes / triage_ranking は Triage(意思決定支援層)のIllustrativeなレスポンス。
 連続の priority_index は一切返さず、tier(高/中/低)のみを公開する
-(独立敵対的監査 guardrail (b))。TRIAGE_DISCLAIMERS は「疑似パイプというデータ」
-だけでなく「優先度算出という手法」自体が未検証であることも明示する
-(guardrail (a))。
+(独立敵対的監査 guardrail (b))。並び順もpriority_indexに依存させない
+(TIER_RANKING_ORDER、guardrail (b)の実装漏れ対策)。_triage_disclaimers() は
+「疑似パイプというデータ」だけでなく「優先度算出という手法」自体が未検証で
+あることも明示し(guardrail (a))、最新のMonitor検定結果を都度反映する。
 """
 import json
 
 from django.contrib.gis.db.models.functions import AsGeoJSON, Transform
+from django.db.models import Case, When
 from django.http import JsonResponse
 
 from analysis.models import AnalysisRun, MeshSummary
+from analysis.permutation import summarize_result as summarize_permutation_result
 from core.models import SubsidenceEvent
 from triage.models import MeshPriority, SyntheticPipe, TriageRun
 
 WEB_SRID = 4326
+
+# triage_rankingの並び順専用。「高→中→低」の業務上の意味付けのための順序であり、
+# priority_indexの値そのものには依存しない(triage.models.TIER_CHOICESと値を揃える)。
+TIER_RANKING_ORDER = ["high", "medium", "low"]
 
 DISCLAIMERS = [
     "これは予測ではなく、実データの統合と、実陥没に対する視覚的・(可能な場合は)"
@@ -35,16 +42,31 @@ DISCLAIMERS = [
     "セル単位の符号(沈下/隆起)は解釈していません。",
 ]
 
-TRIAGE_DISCLAIMERS = [
-    "疑似管路(Illustrative)は実在の管路台帳ではなく、道路網上へ合成配置した架空の"
-    "データです。布設年・管種も架空値であり、実在の設備とは無関係です。",
-    "この点検優先度ランキングの手法自体が未検証です。本プロジェクト自身の統計検定は"
-    "「陥没(下水道原因)箇所は変位速度がより負に偏る」という仮説を支持しませんでした"
-    "(片側p=0.962)。tierは検証済みの予測ではなく、事前のヒューリスティックです。",
-    "面的なトリアージであり、個々の管路・マンホールなど資産単位の予測ではありません。",
-    "本ランキングは点検ワークリストがどう見え・どう振る舞うかのUI実証であり、"
-    "この地域が実際に高優先度であることを統計的に示すものではありません。",
-]
+
+def _triage_disclaimers() -> list[str]:
+    """Triage(意思決定支援層)の免責文を、Monitorの最新検定結果と整合させて動的に
+    組み立てる(独立敵対的監査 guardrail (a))。p値の文言はanalysis.permutation.
+    summarize_result()を単一の情報源として使う(triage.build.runも同関数を使い、
+    TriageRun.metrics_json内のmethod_validation_noteと表記を揃える)。
+    """
+    latest_analysis_run = AnalysisRun.objects.order_by("-created_at").first()
+    permutation_sentence = summarize_permutation_result(
+        latest_analysis_run.metrics_json if latest_analysis_run else {}
+    )
+    return [
+        "疑似管路(Illustrative)は実在の管路台帳ではなく、道路網上へ合成配置した架空の"
+        "データです。布設年・管種も架空値であり、実在の設備とは無関係です。",
+        f"この点検優先度ランキングの手法自体が未検証です。{permutation_sentence}"
+        "tierは検証済みの予測ではなく、事前のヒューリスティックです。",
+        "Monitorでは、GSI変位速度の精度限界(概ね±数mm/年)を理由にセル単位の"
+        "符号(沈下/隆起)を解釈しないと明記していますが、本Triage層はその同じ"
+        "符号を沈下方向のシグナル(subsidence_signal、重み0.4)として優先度算出に"
+        "用いています。精度限界下で解釈しないと自ら述べた値を、意思決定支援の"
+        "入力としては敢えて使うという一貫しない選択であり、隠さずここに明記します。",
+        "面的なトリアージであり、個々の管路・マンホールなど資産単位の予測ではありません。",
+        "本ランキングは点検ワークリストがどう見え・どう振る舞うかのUI実証であり、"
+        "この地域が実際に高優先度であることを統計的に示すものではありません。",
+    ]
 
 
 def _fiscal_year_provenance(metrics_json: dict) -> str:
@@ -197,7 +219,7 @@ def triage_pipes(request):
     latest_run = TriageRun.objects.order_by("-created_at").first()
     if latest_run is None:
         return JsonResponse(
-            {"type": "FeatureCollection", "features": [], "run": None, "disclaimers": TRIAGE_DISCLAIMERS}
+            {"type": "FeatureCollection", "features": [], "run": None, "disclaimers": _triage_disclaimers()}
         )
 
     tier_by_mesh = dict(
@@ -231,7 +253,7 @@ def triage_pipes(request):
             "type": "FeatureCollection",
             "run": {"id": latest_run.pk, "created_at": latest_run.created_at.isoformat()},
             "features": features,
-            "disclaimers": TRIAGE_DISCLAIMERS,
+            "disclaimers": _triage_disclaimers(),
         }
     )
 
@@ -243,17 +265,27 @@ def triage_ranking(request):
     Spearman順位相関(baseline_road_length_spearman_rho)を必ず含め、
     「結局ただの道路長地図では?」を利用者自身が判断できるようにする
     (docs/SPEC.md §7.1、独立敵対的監査 guardrail)。
+
+    並び順はtier(高→中→低)、tier内はmesh_code昇順とし、priority_indexには
+    一切依存しない。tierだけで降順ソートするとpriority_index降順とほぼ一致し、
+    「連続スコアは非公開」の実質(tierという粗い順序への情報縮約)が、レスポンス
+    の並び順から復元できてしまう形で骨抜きになる
+    (独立敵対的監査 guardrail (b)の実装漏れ、docs/SPEC.md §9.4参照)。
     """
     latest_run = TriageRun.objects.order_by("-created_at").first()
     if latest_run is None:
         return JsonResponse(
-            {"exists": False, "ranking": [], "disclaimers": TRIAGE_DISCLAIMERS}
+            {"exists": False, "ranking": [], "disclaimers": _triage_disclaimers()}
         )
 
+    tier_order = Case(
+        *[When(tier=tier, then=order) for order, tier in enumerate(TIER_RANKING_ORDER)],
+        default=len(TIER_RANKING_ORDER),
+    )
     priorities = (
         MeshPriority.objects.filter(run=latest_run)
         .select_related("mesh_cell")
-        .order_by("-priority_index")
+        .order_by(tier_order, "mesh_cell__mesh_code")
     )
 
     ranking = [
@@ -277,6 +309,6 @@ def triage_ranking(request):
             "weights": latest_run.params_json.get("weights"),
             "metrics": latest_run.metrics_json,
             "ranking": ranking,
-            "disclaimers": TRIAGE_DISCLAIMERS,
+            "disclaimers": _triage_disclaimers(),
         }
     )

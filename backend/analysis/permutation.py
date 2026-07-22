@@ -209,3 +209,31 @@ def _p_value_interpretation(
             "空間自己相関を考慮したとしても結論（仮説不支持）は変わらない。"
         )
     return base
+
+
+def summarize_result(metrics_json: dict | None) -> str:
+    """AnalysisRun.metrics_json(run_permutation_testの結果を含む)から、この検定の
+    現状を要約する一文をその場で組み立てる。
+
+    Triage(triage/scoring.py・triage/build.py)とAPI(api/views.py)の双方が、この
+    関数を単一の情報源として参照する。以前は両者がそれぞれ独立に「片側p=0.962」を
+    ハードコードしており、Monitor側の検定がAOI拡大や年度蓄積で再実行され結果が
+    変わっても、Triage側の文言だけ古いまま取り残される恐れがあった
+    (独立敵対的監査の指摘)。ここで一箇所に集約することで、参照している側は必ず
+    最新の検定結果に追随する。
+    """
+    permutation = (metrics_json or {}).get("permutation_test") or {}
+    if not permutation or permutation.get("skipped"):
+        return (
+            "本プロジェクト自身の空間パーミュテーション検定はまだ実施されていません"
+            "(イベント数nが不足、またはMonitorデータ未取込。analysis/run/latest参照)。"
+        )
+    p_value = permutation.get("p_value_one_sided")
+    if not isinstance(p_value, (int, float)):
+        return "本プロジェクト自身の空間パーミュテーション検定の結果を取得できません。"
+    verdict = "支持しました" if p_value < 0.05 else "支持しませんでした"
+    return (
+        "本プロジェクト自身の空間パーミュテーション検定は「陥没(下水道原因)箇所は"
+        f"変位速度がより負に偏る」という仮説を{verdict}(片側p={p_value:.3f}、"
+        "analysis/run/latest参照)。"
+    )

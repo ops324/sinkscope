@@ -11,6 +11,9 @@
   4. /api/triage/ranking/ が priority_index 等の連続スコアを一切含まないこと
      (tierという順序尺度のみを公開する)
   5. 両エンドポイントの disclaimers に「未検証」の趣旨が含まれること
+  6. /api/triage/ranking/ の並び順がtier(高→中→低)・tier内mesh_code昇順であり、
+     priority_index降順とは独立であること(guardrail (b)の実装漏れの回帰防止。
+     tierだけへの縮約がAPIの並び順から骨抜きにされていないことの保証)
 """
 from unittest.mock import patch
 
@@ -20,6 +23,7 @@ from django.test import TestCase
 from analysis.models import AnalysisRun, MeshSummary
 from core.mesh import ensure_mesh_cells
 from core.models import DisplacementVelocity, RoadExposure, SubsidenceEvent
+from triage.models import MeshPriority, TriageRun
 
 TEST_BBOX = (139.80, 35.70, 139.805, 35.705)
 
@@ -162,3 +166,54 @@ class TriageApiTests(TestCase):
         self.assertFalse(data["metrics"]["method_validated"])
         self.assertIn("baseline_road_length_spearman_rho", data["metrics"])
         self.assertTrue(any("未検証" in text for text in data["disclaimers"]))
+
+    def test_disclaimers_disclose_sign_interpretation_inconsistency(self):
+        """Monitorは精度限界を理由にセル符号(沈下/隆起)を解釈しないと明言する一方、
+        Triageのsubsidence_signalはその符号を優先度算出に用いている
+        (triage/scoring.py:compute_priority_index)。この一貫しない扱いを
+        隠さず免責文で自認していることを保証する(独立敵対的監査 重大-1)。
+        """
+        response = self.client.get("/api/triage/ranking/")
+        data = response.json()
+        self.assertTrue(
+            any("符号" in text and "解釈しない" in text for text in data["disclaimers"])
+        )
+
+    def test_ranking_order_is_tier_then_mesh_code_not_priority_index(self):
+        """並び順がpriority_index降順ではなく、tier(高→中→低)→mesh_code昇順である
+        ことを検証する(guardrail (b)の実装漏れの回帰防止)。
+
+        既存のrun_triage生成フィクスチャは、たまたまmesh_codeの文字列順と
+        priority_index降順が一致してしまう(座標が負値のため、mesh_codeの文字列
+        比較順と数値順が逆転し、結果的にpriority_index降順と揃う)ため、両者が
+        意図的に食い違う専用のMeshPriorityを直接構築して検証する。
+        """
+        from api.views import TIER_RANKING_ORDER
+
+        distinct_mesh_codes = sorted({c.mesh_code for c in self.cells})[:4]
+        self.assertGreaterEqual(len(distinct_mesh_codes), 4)
+
+        isolated_run = TriageRun.objects.create(seed=1)
+        # 全て同一tierにし、mesh_code昇順とpriority_index降順が正反対になるよう
+        # 構築する: mesh_codeが最も若いセルにpriority_indexの最大値を与える。
+        for rank, mesh_code in enumerate(distinct_mesh_codes):
+            cell = next(c for c in self.cells if c.mesh_code == mesh_code)
+            MeshPriority.objects.create(
+                mesh_cell=cell,
+                run=isolated_run,
+                priority_index=float(len(distinct_mesh_codes) - rank),
+                tier="high",
+                velocity_cm_per_year=None,
+                road_length_m=None,
+                sewer_event_count=0,
+                pipe_count=0,
+            )
+
+        response = self.client.get("/api/triage/ranking/")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["run_id"], isolated_run.pk)
+        actual_mesh_codes = [row["mesh_code"] for row in data["ranking"]]
+
+        self.assertEqual(actual_mesh_codes, distinct_mesh_codes)
+        self.assertNotEqual(actual_mesh_codes, list(reversed(distinct_mesh_codes)))

@@ -384,12 +384,28 @@ Monitor（第2〜7章）は100%実データで完結する。Triage は、その
 
 - **手法自体の免責(guardrail a)**：`Illustrative`バッジは、疑似管路という「データ」
   だけでなく、優先度算出という「手法」自体が未検証であることも明示しなければならない。
-  本AOI・本データの空間パーミュテーション検定(第7章)は「陥没(下水道原因)箇所は
-  変位速度がより負に偏る」という仮説を**支持しなかった**(片側p=0.962)。したがって
-  沈下シグナル項の重みは検証済みの予測係数ではなく事前の業務ヒューリスティックに
-  過ぎないことを、`TriageRun.metrics_json.method_validated`(常にFalse)と
-  `method_validation_note`、APIの`disclaimers`、フロントの常設バッジ・パネルの
-  4箇所で一貫して明示する。
+  本AOI・本データの空間パーミュテーション検定(第7章)は、直近の実測(§7.3)では
+  「陥没(下水道原因)箇所は変位速度がより負に偏る」という仮説を**支持しなかった**。
+  この検定は`build_monitor`の再実行で結果が変わり得るため、具体的なp値を
+  `triage/scoring.py`や`api/views.py`に固定文字列として書かない設計とした
+  (以前は「片側p=0.962」を2箇所に個別ハードコードしており、Monitor側の検定が
+  再実行されても追随せず、HonestyPanelとTriagePanelで異なる数値が同時表示され
+  うるという指摘を独立敵対的監査で受けた)。`analysis/permutation.py::summarize_result()`
+  を単一の情報源とし、最新の`AnalysisRun.metrics_json`からその場で要約した文言を、
+  `TriageRun.metrics_json.method_validation_note`(生成時点のスナップショット)と
+  API `disclaimers`(リクエスト時点のライブ値)の両方に用いる。沈下シグナル項の重みは
+  検証済みの予測係数ではなく事前の業務ヒューリスティックに過ぎないことを、
+  `TriageRun.metrics_json.method_validated`(常にFalse)・`method_validation_note`・
+  APIの`disclaimers`・フロントの常設バッジ・パネルの4箇所で一貫して明示する。
+- **符号解釈の一貫しない扱いの自認**：Monitor側の免責(`api/views.py DISCLAIMERS`)は
+  GSI変位速度の精度限界(概ね±数mm/年)を理由に「セル単位の符号(沈下/隆起)は
+  解釈しない」と明言する。一方でTriageの`subsidence_signal`
+  (`triage/scoring.py::compute_priority_index`)は、まさにそのセル符号を
+  `clip(upper=0).abs()`で沈下方向のみ抽出し、重み0.4で優先度算出に用いる。
+  これは精度限界下で意味を持たないと自ら述べた値を、意思決定支援の入力としては
+  敢えて使うという一貫しない選択であり、隠すのではなく`_triage_disclaimers()`
+  (`api/views.py`)で明示的に自認する。手法が未検証(`method_validated=False`)
+  である理由の一つでもある。
 - **連続スコアを公開しない(guardrail b)**：`priority_index`はAPIでは一切返さない。
   `/api/triage/pipes/`・`/api/triage/ranking/`は`tier`のみを公開し、構成要素
   (velocity_cm_per_year・road_length_m・sewer_event_count等)は実測値のまま分解表示する。
@@ -430,7 +446,13 @@ APIレスポンスの両方に必ず記録する(`triage/scoring.py::baseline_co
 - `GET /api/triage/ranking/`：メッシュ単位の優先度ランキング。`tier`と構成実測値の
   分解、`metrics`(`method_validated`・`method_validation_note`・
   `baseline_road_length_spearman_rho`・パイプ数)、Triage専用`disclaimers`を返す。
-  `priority_index`はレスポンスに一切含まれない。
+  `priority_index`はレスポンスに一切含まれない。並び順は`tier`(高→中→低)、tier内は
+  `mesh_code`昇順であり、`priority_index`には一切依存しない
+  (`api/views.py::TIER_RANKING_ORDER`)。tierだけで降順ソートすると、tier内の並びが
+  `priority_index`降順とほぼ一致し、レスポンスの並び順から連続スコアの序数を
+  ほぼ復元できてしまう――「連続スコアはtierのみに縮約して非公開にする」
+  (guardrail b)という趣旨が並び順から骨抜きになるという独立敵対的監査の指摘を
+  受けて、tier内の順序をスコアと無関係な`mesh_code`に固定した。
 
 ### 9.5 コマンド(`generate_triage`)
 
