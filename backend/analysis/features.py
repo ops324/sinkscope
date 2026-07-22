@@ -15,18 +15,90 @@ import math
 import pandas as pd
 from django.db.models import Count, Q
 
-from core.models import DisplacementVelocity, MeshCell
+from core.models import DisplacementAcquisition, DisplacementVelocity, MeshCell
 
 from .groundtruth import SEWER_CAUSE_KEYWORD
 from .models import AnalysisRun, MeshSummary
 
 
 def latest_fiscal_year() -> str | None:
-    """取込済みDisplacementVelocityのうち最新の年度を返す（現状は単一年度のみ想定。
+    """表示・集計に使う変位速度の年度を1つ返す（現状は単一年度のみ想定。
     docs/SPEC.md §4.1参照：GSIから得られるのは常に年度スナップショット1枚のみ）。
+
+    `fiscal_year`はDisplacementAcquisitionのbest-effortラベルに過ぎず、真のヴィンテージ
+    識別子はcontent_sha256である。取得時刻からの未検証推定
+    （`fiscal_year_provenance="unverified_retrieval_time"`）は、GSIの成果公開ラグにより
+    実際の成果年度より新しい値になりがちなため、**年度文字列の大小では選ばない**。
+    大小で選ぶと、未検証の推定年度が「数字が大きいから」という理由だけで
+    filename/operator_override由来の検証済み年度を追い越してしまう
+    （来歴汚染バグF9の再発パターンそのもの）。
+
+    優先順位:
+      1. `fiscal_year_provenance`が検証済み（"filename"/"operator_override"）な
+         DisplacementAcquisitionのうち、`retrieved_at`が最新のもの。
+      2. 検証済みが1件も無ければ、`retrieved_at`が最新のDisplacementAcquisition
+         （未検証だが、他に選びようがないため採用する）。
+      3. DisplacementAcquisitionが1件も無い場合（`acquisition`未設定の旧データ・
+         テストで`DisplacementVelocity`を直接生成したケース）のみ、従来どおり
+         `DisplacementVelocity.fiscal_year`のdistinct maxにフォールバックする。
     """
+    verified = (
+        DisplacementAcquisition.objects.filter(
+            fiscal_year_provenance__in=["filename", "operator_override"]
+        )
+        .order_by("-retrieved_at")
+        .first()
+    )
+    if verified is not None:
+        return verified.fiscal_year
+
+    any_acquisition = DisplacementAcquisition.objects.order_by("-retrieved_at").first()
+    if any_acquisition is not None:
+        return any_acquisition.fiscal_year
+
     years = list(DisplacementVelocity.objects.values_list("fiscal_year", flat=True).distinct())
     return max(years) if years else None
+
+
+def displacement_provenance(frame: pd.DataFrame) -> dict:
+    """build_summary_frameが実際に集約した変位速度データの来歴を返す。
+
+    「fiscal_yearから最新1件のDisplacementAcquisitionを後付けで引く」のではなく、
+    このframeに含まれる各メッシュの`DisplacementVelocity`行が実際に指す
+    `acquisition_id`を集計する。これにより、`AnalysisRun.metrics_json`に記録される
+    来歴が「このAnalysisRunを実際に生んだラスタ」と食い違わないことを保証する
+    （fiscal_year単位で後から引き直すと、同一年度に複数回の取込・部分更新があった
+    場合に実際使われたラスタと異なるacquisitionを来歴として記録しかねない）。
+
+    acquisitionが1件も紐付いていない（旧データ）場合は`acquisitions`が空リストになる。
+    複数のacquisitionが混在する場合はその全件を返す（呼び出し側で件数を見れば
+    「単一ラスタ由来」か「混在」かが分かる）。
+    """
+    fiscal_year = frame.attrs.get("fiscal_year")
+    mesh_cell_ids = [int(v) for v in frame["mesh_cell_id"] if pd.notna(v)]
+    if not mesh_cell_ids or fiscal_year is None:
+        return {"fiscal_year": fiscal_year, "acquisitions": []}
+
+    acquisition_ids = list(
+        DisplacementVelocity.objects.filter(
+            mesh_cell_id__in=mesh_cell_ids,
+            fiscal_year=fiscal_year,
+            acquisition__isnull=False,
+        )
+        .values_list("acquisition_id", flat=True)
+        .distinct()
+    )
+    acquisitions = [
+        {
+            "content_sha256": acq.content_sha256,
+            "retrieved_at": acq.retrieved_at.isoformat(),
+            "fiscal_year": acq.fiscal_year,
+            "fiscal_year_provenance": acq.fiscal_year_provenance,
+            "api_file_name": acq.api_file_name,
+        }
+        for acq in DisplacementAcquisition.objects.filter(id__in=acquisition_ids)
+    ]
+    return {"fiscal_year": fiscal_year, "acquisitions": acquisitions}
 
 
 def build_summary_frame(fiscal_year: str | None = None) -> pd.DataFrame:

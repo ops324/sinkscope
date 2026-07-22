@@ -29,6 +29,31 @@ DISCLAIMERS = [
 ]
 
 
+def _fiscal_year_provenance(metrics_json: dict) -> str:
+    """metrics_json["displacement_provenance"]から、年度ラベルの信頼度を1語で要約する。
+
+    GSIの変位速度APIには年度を選択するパラメータが無く、`fiscal_year`は取得記録
+    (DisplacementAcquisition)のbest-effortラベルに過ぎない(docs/SPEC.md §4.1)。
+    APIがこの年度を無条件・断定的に返すと、来歴汚染バグ(F9)と同じ過ちを表示層で
+    繰り返すことになるため、必ずこのフラグと併せて提示する。
+
+    - "verified": 表示に使われた全acquisitionがfilename/operator_override由来。
+    - "unverified": 1件でも取得時刻からの未検証推定(unverified_retrieval_time)が
+      混在する。GSIの成果公開ラグにより、実際の成果年度と異なる可能性がある。
+    - "unknown": acquisitionの記録が無い(acquisition未設定の旧データ、または未取込)。
+    """
+    provenance = (metrics_json or {}).get("displacement_provenance") or {}
+    acquisitions = provenance.get("acquisitions") or []
+    if not acquisitions:
+        return "unknown"
+    if all(
+        a.get("fiscal_year_provenance") in ("filename", "operator_override")
+        for a in acquisitions
+    ):
+        return "verified"
+    return "unverified"
+
+
 def health(request):
     return JsonResponse({"status": "ok", "service": "sinkscope-api"})
 
@@ -70,7 +95,11 @@ def mesh_summary(request):
     return JsonResponse(
         {
             "type": "FeatureCollection",
-            "run": {"id": latest_run.pk, "fiscal_year": latest_run.fiscal_year},
+            "run": {
+                "id": latest_run.pk,
+                "fiscal_year": latest_run.fiscal_year,
+                "fiscal_year_provenance": _fiscal_year_provenance(latest_run.metrics_json),
+            },
             "features": features,
         }
     )
@@ -134,6 +163,7 @@ def analysis_run_latest(request):
             "run_id": latest_run.pk,
             "created_at": latest_run.created_at.isoformat(),
             "fiscal_year": latest_run.fiscal_year,
+            "fiscal_year_provenance": _fiscal_year_provenance(latest_run.metrics_json),
             "metrics": latest_run.metrics_json,
             "disclaimers": DISCLAIMERS,
         }

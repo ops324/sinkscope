@@ -27,7 +27,8 @@ SinkScope は1プロダクト・2モジュール構成を取る。
 | モデル | 主なフィールド | 内容 | 実データ元 |
 |---|---|---|---|
 | `MeshCell` | `mesh_code`, `geom`, `centroid` | 全レイヤー共通の250m格子 | ― |
-| `DisplacementVelocity` | `mesh_cell`, `fiscal_year`, `velocity_cm_per_year` | 準上下方向の変位速度（cm/年） | 国土地理院 衛星SAR地盤変動測量成果 |
+| `DisplacementVelocity` | `mesh_cell`, `fiscal_year`, `velocity_cm_per_year`, `acquisition`(FK) | 準上下方向の変位速度（cm/年） | 国土地理院 衛星SAR地盤変動測量成果 |
+| `DisplacementAcquisition` | `content_sha256`(unique), `retrieved_at`, `fiscal_year`, `fiscal_year_provenance` | 変位速度ラスタ取得ごとの監査記録（来歴の正、4.1章参照） | ― |
 | `GroundClass` | `mesh_cell`, `land_use_class`, `elevation_m`, `geology_class`*, `ground_classification`* | 土地利用・標高（geology/ground_classificationは未実装、下記参照） | KSJ土地利用細分メッシュ、地理院標高タイル |
 | `RoadExposure` | `mesh_cell`, `road_length_m` | メッシュ内道路延長（曝露オフセット用） | OpenStreetMap |
 | `SubsidenceEvent` | `mesh_cell`, `fiscal_year`, `location_text`, `cause_facility`, `geocode_confidence` | 道路陥没事案（ジオコーディング済み） | 国土交通省 道路陥没オープンデータ |
@@ -96,6 +97,37 @@ POST https://sarprod.gsi.go.jp/downloadfile/
 想定しており、エリア一括の時系列ダウンロードに対応するAPIは（レイヤー設定ファイルを見る
 限り）現時点で見当たらない。「2023年度成果」フォルダも別手法（緊急解析）のプロダクトで、
 単純な年度間比較には使えない。この制約が第7章の未決定事項に直結する。
+
+**来歴（provenance）の扱い**：上記の制約により、このAPIには年度を選択するパラメータが
+無く、取込側が「これは何年度の成果か」を断定できる根拠は存在しない。当初の実装は
+`ingest/gsi_displacement.py`に`FISCAL_YEAR = "2025"`という固定リテラルを持ち、取得した
+ラスタの実ヴィンテージに関係なく全レコードへ無条件でこの年度を刻んでいた。これは
+後日（例えば2027年）に再取込した場合、別ヴィンテージのラスタを"2025"と誤ラベルする
+来歴汚染バグであり、敵対的監査で指摘・修正された（本節はその修正後の設計を記す）。
+
+修正後の設計：
+- 取得したGeoTIFFバイト列のSHA-256（`DisplacementAcquisition.content_sha256`、一意制約
+  あり）を**真のヴィンテージ識別子**として毎回記録する。`fiscal_year`はあくまで
+  best-effortの表示用ラベルに過ぎない。
+- 年度ラベルは`fiscal_year_provenance`で信頼度を必ず併記する：`file_name`/`zip_path`
+  （execCommand応答）またはZIP内エントリ名から一意に導出できた場合は`"filename"`、
+  呼び出し側が明示指定した場合は`"operator_override"`、いずれも不能な場合は取得時点の
+  日本の年度（JSTで4月始まり）を推定した`"unverified_retrieval_time"`。
+  GSIの成果公開には数か月単位のラグがある（例：2025年度成果は2026年3月31日公開）ため、
+  「取得時計の年度」が実際に配信されている成果の年度と一致する保証はない。
+- **実際のfile_name/zip_pathの中身は本書執筆時点でまだ一度も実機観測されていない**
+  （下記コマンド例のレスポンスは構造のみで値は伏せている）。そのため`file_name`等からの
+  年度導出ロジックは実装を凍結しており（`ingest/gsi_displacement.py::_derive_fiscal_year`
+  は常に`None`を返す）、現状は`"unverified_retrieval_time"`が事実上の既定経路になる。
+  実フォーマットを確認するまでは、誤った確信を来歴に刻むより「未検証」と正直に示す方を
+  選んでいる（誠実性フレームワーク、第5章）。
+- 同一ラスタ（同一`content_sha256`）の再取得は`DisplacementAcquisition`を重複作成せず、
+  既存の年度ラベルを再利用する。デデュープしないと、公開ラグの下で同一ラスタを繰り返し
+  取り込むたびに異なる推定年度が刻まれ、`latest_fiscal_year()`の判定を汚染しかねない。
+- `latest_fiscal_year()`（`analysis/features.py`）は年度文字列の大小では選ばない。
+  検証済み（`"filename"`/`"operator_override"`）のラベルを優先し、無ければ
+  `retrieved_at`が最新の取得記録を採用する。文字列の大小で選ぶと、未検証の推定年度が
+  「数字が大きいから」という理由だけで検証済みの年度を追い越してしまう。
 
 ### 4.2 国土数値情報（KSJ）土地利用細分メッシュ（`ingest/kokudo_suuchi.py`）
 
@@ -166,6 +198,15 @@ README の表を参照。本書ではモデル単位で対応関係を明記す�
   `RoadExposure`、`SubsidenceEvent` はすべて上記5データソースからの実測・実取得値。
 - **合成データ**：疑似管路（Triageモジュールで実装予定、`SyntheticPipe`相当のモデルは
   未実装）。
+- **InSARラスタの来歴（`DisplacementAcquisition`）**：GSIの変位速度APIには年度を選択する
+  手段が無いため（4.1章）、取込のたびに取得した GeoTIFF の SHA-256（`content_sha256`、
+  一意制約）と取得時刻（`retrieved_at`）を監査記録として残す。`fiscal_year`は
+  この記録に紐づくbest-effortの表示ラベルに過ぎず、`fiscal_year_provenance`が
+  `"unverified_retrieval_time"`の場合は「取得時点の年度を推定しただけで、実際の成果年度
+  との一致は未検証」であることを常に意味する。ラベルの検証可否をユーザーへ隠さない
+  （`api/views.py`の`fiscal_year_provenance`、`AnalysisRun.metrics_json.displacement_provenance`）。
+  かつてこの区別が無く固定文字列を断定的に刻んでいたことが、来歴汚染バグ（F9）として
+  敵対的監査で指摘され、本節の設計に修正された。
 - **未実装（原理的制約ではなくスコープ判断）**：`PrecipitationObservation`（第6章）、
   `GroundClass.geology_class`/`ground_classification`（第2章）。
 

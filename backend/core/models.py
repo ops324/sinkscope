@@ -19,12 +19,55 @@ class MeshCell(models.Model):
         return self.mesh_code
 
 
+class DisplacementAcquisition(models.Model):
+    """GSI 衛星SAR変位速度APIへの1回の取得の監査記録（来歴の正）。
+
+    GSIのAPIは常に「現在年度成果」のスナップショット1枚しか返さず、年度を選択できない
+    （docs/SPEC.md §4.1）。そのためAPI応答やダウンロードしたGeoTIFFに固定の年度ラベルを
+    付けることはできず、`fiscal_year`はあくまで best-effort のラベルに過ぎない。
+    **`content_sha256`（取得したGeoTIFFバイト列のSHA-256）こそが真のヴィンテージ識別子**
+    であり、同一ラスタの再取得は`content_sha256`で重複排除し、既存の年度ラベルを
+    上書きしない（`ingest/gsi_displacement.py`参照）。
+
+    `fiscal_year_provenance`は年度ラベルの信頼度を表す：
+    - "filename": execCommand応答のfile_name/zip_pathまたはZIP内エントリ名から一意に
+      導出できた場合（現状、実際のファイル名フォーマットが未観測のため未実装。
+      `ingest/gsi_displacement.py::_derive_fiscal_year`はフォーマット確認まで凍結している）。
+    - "operator_override": 呼び出し側が年度を明示指定した場合。
+    - "unverified_retrieval_time": 上記いずれも不能で、取得時点の日本の年度（4月〜翌3月）
+      を推定値として代入した場合。GSIの成果公開には数か月単位のラグがあるため、
+      取得時計の年度が実際の成果年度と一致する保証はない。
+    """
+
+    content_sha256 = models.CharField(max_length=64, unique=True)
+    retrieved_at = models.DateTimeField()
+    fiscal_year = models.CharField(max_length=8)
+    fiscal_year_provenance = models.CharField(max_length=32)
+    api_file_name = models.CharField(max_length=255, blank=True)
+    zip_path = models.CharField(max_length=255, blank=True)
+    tif_name = models.CharField(max_length=255, blank=True)
+    bbox = models.JSONField()
+    raw_file_info = models.JSONField(default=dict, blank=True)
+    source = models.CharField(max_length=64, default="gsi_sar_tsa")
+
+    class Meta:
+        ordering = ["-retrieved_at"]
+
+    def __str__(self):
+        return f"{self.fiscal_year} ({self.fiscal_year_provenance}) {self.content_sha256[:12]}"
+
+
 class DisplacementVelocity(models.Model):
     """国土地理院 衛星SAR地盤変動測量成果による、メッシュ単位の準上下方向変位速度（実データ）。
 
     GSIが提供するのは各年度時点での「変位速度」（観測期間全体を通じた線形トレンド、
     cm/年）であり、稠密な多時点の累積変位量ではない。年度(fiscal_year)ごとに別行として
     保存することで、年度間の速度差（トレンド変化）を後段の解析で比較できるようにする。
+
+    `fiscal_year`はラベルに過ぎず、真のヴィンテージ識別子は`acquisition.content_sha256`
+    （取得したGeoTIFFの内容ハッシュ）である。`acquisition`はnullable（既存データ・
+    直接生成されたテストデータとの後方互換のため）だが、設定されている場合は
+    `on_delete=PROTECT`とし、来歴が参照中の取得記録が無言で消えないようにしている。
     """
 
     mesh_cell = models.ForeignKey(
@@ -35,6 +78,13 @@ class DisplacementVelocity(models.Model):
     period_end = models.DateField(null=True, blank=True)
     velocity_cm_per_year = models.FloatField()
     source = models.CharField(max_length=64, default="gsi_sar_tsa")
+    acquisition = models.ForeignKey(
+        DisplacementAcquisition,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="velocities",
+    )
 
     class Meta:
         constraints = [

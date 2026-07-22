@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from django.db import transaction
 
-from .features import build_summary_frame, latest_fiscal_year, persist_summary
+from .features import build_summary_frame, displacement_provenance, latest_fiscal_year, persist_summary
 from .groundtruth import SEWER_CAUSE_KEYWORD, count_aoi_events, in_aoi_events
 from .models import AnalysisRun
 from .permutation import N_PERMUTATIONS, RANDOM_SEED, run_permutation_test
@@ -43,11 +43,17 @@ def run(fiscal_year: str | None = None, seed: int = RANDOM_SEED) -> AnalysisRun:
             ),
         }
 
+    provenance = displacement_provenance(frame)
+
     with transaction.atomic():
         run_obj = AnalysisRun.objects.create(
             fiscal_year=fiscal_year or "",
             params_json={"seed": seed, "n_permutations": N_PERMUTATIONS},
-            metrics_json={**event_summary, "permutation_test": permutation_result},
+            metrics_json={
+                **event_summary,
+                "permutation_test": permutation_result,
+                "displacement_provenance": provenance,
+            },
         )
         persist_summary(frame, run_obj)
 

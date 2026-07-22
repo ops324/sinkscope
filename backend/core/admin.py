@@ -1,6 +1,7 @@
 from django.contrib import admin
 
 from .models import (
+    DisplacementAcquisition,
     DisplacementVelocity,
     GroundClass,
     MeshCell,
@@ -15,9 +16,22 @@ class MeshCellAdmin(admin.ModelAdmin):
     search_fields = ["mesh_code"]
 
 
+@admin.register(DisplacementAcquisition)
+class DisplacementAcquisitionAdmin(admin.ModelAdmin):
+    list_display = [
+        "retrieved_at",
+        "fiscal_year",
+        "fiscal_year_provenance",
+        "content_sha256",
+        "source",
+    ]
+    list_filter = ["fiscal_year", "fiscal_year_provenance", "source"]
+    search_fields = ["content_sha256", "api_file_name"]
+
+
 @admin.register(DisplacementVelocity)
 class DisplacementVelocityAdmin(admin.ModelAdmin):
-    list_display = ["mesh_cell", "fiscal_year", "velocity_cm_per_year", "source"]
+    list_display = ["mesh_cell", "fiscal_year", "velocity_cm_per_year", "source", "acquisition"]
     list_filter = ["fiscal_year", "source"]
 
 
