@@ -293,7 +293,93 @@
   font-size: 0.8rem;
 }
 
-/* --- HonestyPanel --- */
+/* --- Monitor 右レール(選択コックピット D3) --- */
+
+/* 右レールが幅・境界・スクロールを一括で持ち、中の詳細/解説はセクションとして積む。
+   地図は一切覆わず、視線の着地点を一定にした「座って読む」体験にする。 */
+.monitor-rail {
+  width: 340px;
+  flex-shrink: 0;
+  border-left: 1px solid #263140;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.mesh-detail-panel {
+  padding: 1.1rem 1.25rem;
+  border-bottom: 1px solid #263140;
+  flex-shrink: 0;
+}
+
+.mesh-detail-header {
+  margin-bottom: 0.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.mesh-detail-clear {
+  background: transparent;
+  border: 1px solid #263140;
+  color: #8b98a5;
+  font-size: 0.7rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.mesh-detail-clear:hover {
+  background: rgba(74, 158, 255, 0.1);
+  border-color: #4a9eff;
+  color: #e6edf3;
+}
+
+.mesh-detail-chip {
+  display: inline-block;
+  padding: 0.12rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(74, 158, 255, 0.14);
+  border: 1px solid #2f5f92;
+  color: #7fb6ff;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.mesh-detail-empty,
+.mesh-detail-placeholder {
+  margin: 0;
+  padding: 0.7rem 0.85rem;
+  border-left: 3px solid #3a4653;
+  background: rgba(139, 152, 165, 0.06);
+  color: #8b98a5;
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+
+.mesh-detail-empty-note {
+  color: #6b7681;
+  font-size: 0.75rem;
+}
+
+.mesh-detail-disclaimer {
+  margin: 0.7rem 0 0;
+  padding-top: 0.6rem;
+  border-top: 1px dashed #21272e;
+  font-size: 0.74rem;
+  color: #6b7681;
+  line-height: 1.6;
+}
+
+.mesh-detail-disclaimer strong {
+  color: #a9b4bf;
+}
+
+/* --- HonestyPanel / TriagePanel ---
+   単体で右辺に出るとき(Triageビュー)は自前で幅・境界・スクロールを持つ。
+   Monitorの右レール内にネストされたときは rail 側が担うため打ち消す。 */
 
 .honesty-panel {
   width: 340px;
@@ -301,6 +387,12 @@
   padding: 1.1rem 1.25rem;
   border-left: 1px solid #263140;
   overflow-y: auto;
+}
+
+.monitor-rail .honesty-panel {
+  width: auto;
+  border-left: none;
+  overflow-y: visible;
 }
 
 .honesty-panel h2 {
@@ -386,10 +478,15 @@
     flex-direction: column;
   }
 
-  .honesty-panel {
+  .monitor-rail {
     width: auto;
     border-left: none;
     border-top: 1px solid #263140;
-    max-height: 40vh;
+    max-height: 45vh;
+  }
+
+  /* TriagePanel は単体で右辺に出るため、狭幅では同様の回り込みを個別指定 */
+  .honesty-panel {
+    width: auto;
   }
 }

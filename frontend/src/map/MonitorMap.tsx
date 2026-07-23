@@ -97,7 +97,17 @@ function pipeTooltipText(props: TriagePipeFeatureProperties): string {
   ].join("\n");
 }
 
-export default function MonitorMap({ moduleView }: { moduleView: ModuleView }) {
+export default function MonitorMap({
+  moduleView,
+  selectedMeshCode,
+  onSelectMesh,
+  onMeshLoadingChange,
+}: {
+  moduleView: ModuleView;
+  selectedMeshCode: string | null;
+  onSelectMesh: (props: MeshFeatureProperties | null) => void;
+  onMeshLoadingChange: (loading: boolean) => void;
+}) {
   const [activeLayer, setActiveLayer] = useState<LayerKey>("velocity");
   const [meshData, setMeshData] = useState<MeshSummaryResponse | null>(null);
   const [eventsData, setEventsData] = useState<EventsResponse | null>(null);
@@ -107,11 +117,18 @@ export default function MonitorMap({ moduleView }: { moduleView: ModuleView }) {
   useEffect(() => {
     fetchMeshSummary()
       .then(setMeshData)
-      .catch((err: unknown) => setLoadError(String(err)));
+      .catch((err: unknown) => setLoadError(String(err)))
+      .finally(() => onMeshLoadingChange(false));
     fetchEvents()
       .then(setEventsData)
       .catch((err: unknown) => setLoadError(String(err)));
-  }, []);
+  }, [onMeshLoadingChange]);
+
+  // 選択中メッシュのfeature(中立色ハイライト用)。source of truthはApp側のselectedMeshCode。
+  const selectedFeature = useMemo(() => {
+    if (!meshData || selectedMeshCode === null) return null;
+    return meshData.features.find((f) => f.properties.mesh_code === selectedMeshCode) ?? null;
+  }, [meshData, selectedMeshCode]);
 
   useEffect(() => {
     if (moduleView === "triage" && !pipesData) {
@@ -142,6 +159,35 @@ export default function MonitorMap({ moduleView }: { moduleView: ModuleView }) {
           lineWidthUnits: "pixels",
           pickable: !isTriage,
           updateTriggers: { getFillColor: [activeLayer, isTriage] },
+        }),
+      );
+    }
+
+    // 選択セルの中立色ハイライト。「選択」を示すUIアフォーダンスとして、アプリ共通の
+    // アクセント青(module/layerのactiveと同系)を用いる。発散/赤=危険配色は使わない(監査制約#3)。
+    // 外側の淡いグロー＋内側のクリスプな芯の2枚で、縮尺に依らず「どのセルか」を一目で示す。
+    // 選択セル1件だけを描く別レイヤーにし、全メッシュのfill再評価を避ける。
+    if (selectedFeature && !isTriage) {
+      built.push(
+        new GeoJsonLayer<MeshFeatureProperties>({
+          id: "mesh-selected-glow",
+          data: [selectedFeature],
+          filled: false,
+          stroked: true,
+          getLineColor: [74, 158, 255, 90] as [number, number, number, number],
+          getLineWidth: 7,
+          lineWidthUnits: "pixels",
+          pickable: false,
+        }),
+        new GeoJsonLayer<MeshFeatureProperties>({
+          id: "mesh-selected-core",
+          data: [selectedFeature],
+          filled: false,
+          stroked: true,
+          getLineColor: [235, 242, 250, 255] as [number, number, number, number],
+          getLineWidth: 2.5,
+          lineWidthUnits: "pixels",
+          pickable: false,
         }),
       );
     }
@@ -192,7 +238,7 @@ export default function MonitorMap({ moduleView }: { moduleView: ModuleView }) {
     }
 
     return built;
-  }, [meshData, eventsData, pipesData, activeLayer, isTriage]);
+  }, [meshData, eventsData, pipesData, activeLayer, isTriage, selectedFeature]);
 
   return (
     <div className="monitor-map">
@@ -200,6 +246,21 @@ export default function MonitorMap({ moduleView }: { moduleView: ModuleView }) {
         initialViewState={INITIAL_VIEW_STATE}
         controller
         layers={layers}
+        getCursor={({ isDragging, isHovering }) =>
+          isDragging ? "grabbing" : isHovering ? "pointer" : "grab"
+        }
+        onClick={(info) => {
+          // メッシュをクリック→選択(右レール詳細)。同じセルを再クリック→選択解除(トグル)。
+          // 陥没イベント点のクリックは選択を変えない(層IDで判定)。
+          // 背景クリックはdeckのオーバーレイ構成ではonClickが発火しないため、解除は
+          // トグル再クリックとパネルの「解除」ボタン(App側 onClear)で担保する。
+          if (isTriage) return;
+          if (info.object && info.layer?.id === "mesh-summary") {
+            const props = (info.object as GeoJSON.Feature<GeoJSON.Geometry, MeshFeatureProperties>)
+              .properties;
+            onSelectMesh(props.mesh_code === selectedMeshCode ? null : props);
+          }
+        }}
         getTooltip={({ object, layer }) => {
           if (!object) return null;
           if (layer?.id === "mesh-summary" && !isTriage) return { text: meshTooltipText(object.properties) };
