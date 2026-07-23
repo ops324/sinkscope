@@ -237,6 +237,27 @@ README の表を参照。本書ではモデル単位で対応関係を明記す�
   統計的主張も行わず記述に留める。多変量回帰・スコアリングモデルの学習は本プロジェクトの
   どこにも実装しない（第7章）。
 
+### 5.2 誠実性の強制と再現（CI・再現ハーネス）
+
+上記のガードレール群 ── 生スコア（`priority_index`）の非公開、tier並び順の
+`priority_index`非依存化（9.4章）、免責文の単一情報源化（9.2章）、来歴ラベルの
+検証可否表示、反循環ガード（第7章）など、独立敵対的監査（PR #6〜#9）で追加・強化された
+不変条件 ── は、`backend/{core,ingest,analysis,api,triage}/tests.py`の約40テストとして
+実装されている。これらは **GitHub Actions CI（`.github/workflows/ci.yml`）が全PR・全pushで
+実行**し、いずれかが回帰すればマージがブロックされる。「テストで誠実性を守る」という主張を、
+手動実行に頼らず強制力のある不変条件にするための仕組みである。
+
+加えて、§7.3・§9.3の実測値（片側p=0.9616、Moran's I=0.797、道路長とのSpearman順位相関
+ρ=0.903）は、文書に記載するだけでは第三者が検証できない（生データは`.gitignore`され、
+ライブソースはdriftする）。そこで、これらの数値の直接の裏付けとなった入力データ一式を
+来歴付きゴールデンスナップショット（`backend/analysis/fixtures/golden_snapshot.json.gz`、
+来歴は`docs/SNAPSHOT.md`）としてコミットし、`./scripts/reproduce.sh`がクリーンな使い捨て
+環境でこれを読み込み、同一seed（=42）で`build_monitor`→`generate_triage`を再実行して
+期待値と照合する。CIの`reproduce`ジョブがこれを毎回実行し、driftを継続検知する。数値の
+単一情報源は`backend/analysis/fixtures/golden_snapshot_expected_metrics.json`であり、
+本書・README・`docs/ASSESSMENT.md`の数値はそこからの転記に過ぎない（p値を固定文字列で
+埋め込み検定の再実行に追随できなかったF9/独立敵対的監査の教訓を、文書層にも適用したもの）。
+
 ---
 
 ## 6. スコープ外とした判断
