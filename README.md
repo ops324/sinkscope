@@ -101,13 +101,40 @@ docs/SPEC.md §7.1で警戒した「実質、道路長の地図をハザード�
 - 解析: Python（GeoPandas, rasterio, pandas, SciPy）
 - インフラ: Docker Compose（ローカル開発）
 
-## ローカル開発環境
+## デモを動かす（最短・外部ネット不要）
+
+`docker compose up` 直後のDBは空で、地図に実データを出すには本来
+`ingest_all`→`build_monitor`→`generate_triage` を手動実行する必要があり、各取込は
+政府の生きたエンドポイントへ実HTTP取得する（遅く・不安定・ネット必須）。読み手が
+これを踏むのは非現実的なので、**コミット済みのデータスナップショット
+（`backend/analysis/fixtures/golden_snapshot.json.gz`）からオフラインで投入する**
+ワンコマンドを用意した：
+
+```bash
+make demo
+# → build → PostGIS起動 → migrate → snapshot投入 → バックエンド起動（外部取得なし）
+
+# フロントエンド（別ターミナル）
+cd frontend && npm install && npm run dev   # → http://localhost:5173
+```
+
+表示される数値（片側p=0.9616・Moran's I=0.797・道路長との順位相関 ρ=0.903）は、
+[再現ハーネス](#再現性reproducibility)がCIで継続検証している値と同一である
+（"見栄え用の別データ"を作っていない）。`make help` でタスク一覧。
+
+## ローカル開発環境（フル取込・実データを自分で取得する場合）
 
 ```bash
 cp .env.example .env
 
 # バックエンド + PostGIS
 docker compose up --build
+
+# 実データの取込→解析（コンテナ内、外部エンドポイントへ実取得）
+docker compose exec backend python manage.py migrate
+docker compose exec backend python manage.py ingest_all
+docker compose exec backend python manage.py build_monitor --seed 42
+docker compose exec backend python manage.py generate_triage --seed 42
 
 # フロントエンド（別ターミナル）
 cd frontend
