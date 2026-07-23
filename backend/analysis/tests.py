@@ -17,15 +17,20 @@ Django標準のTestCase(pytestではなくこのプロジェクトの既存流�
 """
 import random
 from datetime import timedelta
+from io import StringIO
+from unittest import mock
 
 import pandas as pd
+from django.core.management import call_command
 from django.test import TestCase
 from django.utils import timezone
 
 from core.mesh import _mesh_code, ensure_mesh_cells
 from core.models import DisplacementAcquisition, DisplacementVelocity, GroundClass, RoadExposure
+from triage.models import TriageRun
 
 from .features import build_summary_frame, displacement_provenance, latest_fiscal_year
+from .models import AnalysisRun
 from .permutation import morans_i_velocity, run_permutation_test
 
 # 250mメッシュが複数生成される程度の小さなAOI(実際のensure_mesh_cellsを使い、
@@ -278,3 +283,53 @@ class DisplacementProvenanceTests(TestCase):
         provenance = displacement_provenance(frame)
 
         self.assertEqual(provenance["acquisitions"], [])
+
+
+class SeedDemoGuardTests(TestCase):
+    """seed_demo（デモ用オフライン投入）の冪等ガードを検証する。
+
+    seed_demoは「デモ環境のセットアップ」であり、reproduce_assessment（クリーンDB
+    での検証）と違って既存データがあってもエラーにせず冪等にskipすべき。重い投入
+    連鎖（loaddata→build_monitor→generate_triage）はここでは目的でないためmockし、
+    ガードの分岐（skip / --forceで実行）だけを高速に検証する。
+    """
+
+    def _run(self, **kwargs):
+        # seed_demoモジュール内のcall_commandを差し替え、実際の重い連鎖を呼ばせない。
+        with mock.patch("analysis.management.commands.seed_demo.call_command") as mocked:
+            call_command("seed_demo", stdout=StringIO(), **kwargs)
+        return mocked
+
+    def test_skips_when_already_seeded(self):
+        run = AnalysisRun.objects.create(fiscal_year="2025")
+        TriageRun.objects.create(seed=42)
+        mocked = self._run()
+        mocked.assert_not_called()  # loaddata等が一切呼ばれない＝skip
+        # 既存データを消したり増やしたりしないこと
+        self.assertEqual(AnalysisRun.objects.count(), 1)
+        self.assertEqual(AnalysisRun.objects.first(), run)
+
+    def test_force_runs_the_chain_even_when_seeded(self):
+        AnalysisRun.objects.create(fiscal_year="2025")
+        TriageRun.objects.create(seed=42)
+        mocked = self._run(force=True)
+        called = [c.args[0] for c in mocked.call_args_list]
+        self.assertEqual(called, ["loaddata", "build_monitor", "generate_triage"])
+
+    def test_runs_the_chain_on_empty_db_without_force(self):
+        # AnalysisRun/TriageRunが無い（空DB）なら、forceなしでも投入連鎖を実行する。
+        # build_monitor/generate_triageが実際に行を作る様子をside_effectで模し、
+        # コマンドが正常完了しつつ連鎖が正しい順で呼ばれることを検証する
+        # （実際の数値再現はreproduce_assessment/CIのreproduceジョブに委ねる）。
+        def fake(name, *args, **kwargs):
+            if name == "build_monitor":
+                AnalysisRun.objects.create(fiscal_year="2025")
+            elif name == "generate_triage":
+                TriageRun.objects.create(seed=42)
+
+        with mock.patch(
+            "analysis.management.commands.seed_demo.call_command", side_effect=fake
+        ) as mocked:
+            call_command("seed_demo", stdout=StringIO())
+        called = [c.args[0] for c in mocked.call_args_list]
+        self.assertEqual(called, ["loaddata", "build_monitor", "generate_triage"])
