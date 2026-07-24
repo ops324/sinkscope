@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import DeckGL from "@deck.gl/react";
 import { FlyToInterpolator, type MapViewState } from "@deck.gl/core";
 import { GeoJsonLayer, PathLayer, ScatterplotLayer } from "@deck.gl/layers";
@@ -8,6 +8,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 
 import {
   fetchEvents,
+  fetchGeocode,
   fetchMeshSummary,
   fetchTriagePipes,
   type EventFeatureProperties,
@@ -116,6 +117,28 @@ function bboxCenter(geometry: GeoJSON.Polygon): [number, number] {
   return [(minLng + maxLng) / 2, (minLat + maxLat) / 2];
 }
 
+// core/aoi.py の DEMO_AOI_BBOX と同じ対象範囲(江東・江戸川・八潮周辺)。地名検索(D4)は全国の
+// 候補が返るため、この範囲外の結果は「対象エリア外」として飛ばさない(データ被覆外へ誘導しない)。
+const AOI_BBOX = { minLng: 139.75, minLat: 35.62, maxLng: 139.95, maxLat: 35.86 };
+
+function inAoi(lng: number, lat: number): boolean {
+  return lng >= AOI_BBOX.minLng && lng <= AOI_BBOX.maxLng && lat >= AOI_BBOX.minLat && lat <= AOI_BBOX.maxLat;
+}
+
+// 点が Polygon(外周リング)に含まれるかの ray-casting 判定。地名検索の座標を含む250mメッシュを
+// 選ぶために使う(バックエンドは投影座標の格子除算だが、フロントは保持済みポリゴンで素直に判定)。
+function pointInPolygon(lng: number, lat: number, geometry: GeoJSON.Polygon): boolean {
+  const ring = geometry.coordinates[0];
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i];
+    const [xj, yj] = ring[j];
+    const intersect = yi > lat !== yj > lat && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
 // transition プロパティを取り除いた素の viewState。制御 viewState に transitionInterpolator を
 // 永続させると deck が「遷移中」のままになり操作(パン/ズーム/クリック)が固まる。遷移完了時と
 // ユーザー操作時にこれで素の状態へ戻し、遷移プロパティを必ず一過性にする。
@@ -159,6 +182,10 @@ export default function MonitorMap({
   // (transitionDuration/Interpolator/onTransitionEnd)も内包するので、そのまま状態型に使う
   // (推論型 = INITIAL_VIEW_STATE のリテラル型のままだと excess-property でビルドが落ちる)。
   const [viewState, setViewState] = useState<MapViewState>(INITIAL_VIEW_STATE);
+  // 地名検索(D4)。名称→座標は国土地理院ジオコーダ、そこから区画選択はローカルの point-in-mesh。
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchBusy, setSearchBusy] = useState(false);
+  const [searchMessage, setSearchMessage] = useState<string | null>(null);
 
   useEffect(() => {
     fetchMeshSummary()
@@ -207,19 +234,58 @@ export default function MonitorMap({
   useEffect(() => {
     if (!isTriage || !selectedFeature) return;
     const [cx, cy] = bboxCenter(selectedFeature.geometry);
+    flyToPoint(cx, cy);
+    // flyToPoint は安定した参照を要さない(setState のみ)。selectedFeature/isTriage の変化で発火。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedFeature, isTriage]);
+
+  // 指定座標へ flyTo(上限ズーム)。字・大字レベルの粗い位置精度を過大に「正確」に見せないため
+  // ズームは上限付き。遷移プロパティは onTransitionEnd で必ず破棄する(deck-timer駆動なので
+  // ユーザー操作が無くても発火)――これを怠ると transitionInterpolator が残り地図操作が固まる。
+  function flyToPoint(longitude: number, latitude: number) {
     setViewState((v) => ({
       ...v,
-      longitude: cx,
-      latitude: cy,
-      // 上限付き。字・大字レベルのジオコーディング(粗い位置精度)を過大に「正確」に見せない。
+      longitude,
+      latitude,
       zoom: Math.min(Math.max(v.zoom, 12), 13),
       transitionDuration: 800,
       transitionInterpolator: new FlyToInterpolator(),
-      // 遷移完了で遷移プロパティを破棄する(deck-timer駆動なのでユーザー操作が無くても発火)。
-      // これを怠ると transitionInterpolator が残り、地図操作が固まる。
       onTransitionEnd: () => setViewState((cur) => plainViewState(cur)),
     }));
-  }, [selectedFeature, isTriage]);
+  }
+
+  // 地名検索(D4)。国土地理院ジオコーダで名称→座標を得て、AOI内なら flyTo し、その点を含む
+  // メッシュを選択する(右レール詳細に接続)。誠実性の要点:
+  //  - 全国候補のうち AOI 内のものだけ採用(範囲外はデータ被覆外なので「対象エリア外」表示)。
+  //  - 位置は字・大字レベルで粗いので flyTo は上限ズーム、結果も「おおよその位置」と明示。
+  //  - 選択は予測ではなく「この地点を含む250mメッシュ」の実測値表示。
+  async function handleSearchSubmit(event: FormEvent) {
+    event.preventDefault();
+    const query = searchQuery.trim();
+    if (!query || searchBusy) return;
+    setSearchBusy(true);
+    setSearchMessage(null);
+    try {
+      const candidates = await fetchGeocode(query);
+      const hit = candidates.find((c) => inAoi(c.longitude, c.latitude));
+      if (!hit) {
+        setSearchMessage("対象エリア外か、見つかりませんでした（デモは江東区・江戸川区・八潮市周辺のみ）。");
+        return;
+      }
+      flyToPoint(hit.longitude, hit.latitude);
+      const feature = meshData?.features.find((f) => pointInPolygon(hit.longitude, hit.latitude, f.geometry));
+      if (feature) {
+        onSelectMesh(feature.properties);
+        setSearchMessage(`「${hit.title}」付近を表示（おおよその位置・字/大字レベル）。`);
+      } else {
+        setSearchMessage(`「${hit.title}」付近へ移動しました（この地点に対応する区画データはありません）。`);
+      }
+    } catch {
+      setSearchMessage("検索に失敗しました。時間をおいて再度お試しください。");
+    } finally {
+      setSearchBusy(false);
+    }
+  }
 
   const layers = useMemo(() => {
     const built = [];
@@ -412,6 +478,30 @@ export default function MonitorMap({
               {LAYER_LABELS[key]}
             </button>
           ))}
+        </div>
+      )}
+
+      {!isTriage && (
+        <div className="map-search">
+          <form className="map-search-form" onSubmit={handleSearchSubmit} role="search">
+            <input
+              type="text"
+              className="map-search-input"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="地名・住所で移動（例：江戸川区、金町）"
+              aria-label="地名・住所で地図を移動"
+              enterKeyHint="search"
+            />
+            <button type="submit" className="map-search-button" disabled={searchBusy}>
+              {searchBusy ? "検索中…" : "検索"}
+            </button>
+          </form>
+          {searchMessage && (
+            <p className="map-search-message" role="status">
+              {searchMessage}
+            </p>
+          )}
         </div>
       )}
 
