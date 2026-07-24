@@ -77,3 +77,42 @@ jobs:
       - name: Tear down
         if: always()
         run: docker compose down -v
+
+  # 単一URL配信(D7): シェア用の静的サイトが読むコミット済みJSON
+  # (frontend/public/data/*.json)が、golden snapshotから再生成した結果と一致することを
+  # 継続検証する。分析ロジックやsnapshotを変えたのに`make static`で焼き直し忘れると落ちる
+  # (golden snapshot再現ハーネスと同じ「主張を機械で強制」の思想)。時刻/pkだけの差では
+  # 落とさない(export_static --check が created_at/run_id/run.id を除外して意味的に比較)。
+  # reproduce_assessmentは既存データがあると失敗するため相乗りできず、独立ジョブにする。
+  static-export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # --check はコミット済み frontend/public/data/*.json(Git LFS)と再生成結果を
+          # 比較するため、LFSポインタではなく実体を取得する必要がある。
+          lfs: true
+
+      - name: Prepare .env
+        run: cp .env.example .env
+
+      - name: Build backend image
+        run: docker compose build backend
+
+      - name: Seed demo DB from golden snapshot
+        run: docker compose run --rm backend sh -c "python manage.py migrate && python manage.py seed_demo --force"
+
+      - name: Check committed static JSON matches a fresh export
+        run: |
+          docker compose run --rm -v "$PWD/frontend/public/data:/committed:ro" backend \
+            python manage.py export_static --check --out /committed
+
+      - name: Show backend logs on failure
+        if: failure()
+        run: docker compose logs backend db
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
