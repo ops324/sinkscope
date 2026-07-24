@@ -3,6 +3,7 @@ import { useState } from "react";
 import "./App.css";
 import type { MeshFeatureProperties } from "./api/client";
 import HonestyPanel from "./components/HonestyPanel";
+import MapGuide from "./components/MapGuide";
 import MeshDetailPanel from "./components/MeshDetailPanel";
 import TriagePanel from "./components/TriagePanel";
 import MonitorMap from "./map/MonitorMap";
@@ -51,6 +52,7 @@ function App() {
         />
         {moduleView === "monitor" ? (
           <div className="monitor-rail">
+            <MapGuide />
             <MeshDetailPanel
               selected={selectedMesh}
               loading={meshLoading}

@@ -130,6 +130,15 @@ export default function MonitorMap({
     return meshData.features.find((f) => f.properties.mesh_code === selectedMeshCode) ?? null;
   }, [meshData, selectedMeshCode]);
 
+  // 初見向けコーチマーク: まず何をすればよいか(区画クリック)を一度だけ促す。
+  // 一度でも選択したら二度と出さない(邪魔しない)。手動で閉じることも可能。
+  const [everSelected, setEverSelected] = useState(false);
+  const [coachDismissed, setCoachDismissed] = useState(false);
+  useEffect(() => {
+    if (selectedMeshCode !== null) setEverSelected(true);
+  }, [selectedMeshCode]);
+  const showCoach = moduleView !== "triage" && !!meshData && !everSelected && !coachDismissed;
+
   useEffect(() => {
     if (moduleView === "triage" && !pipesData) {
       fetchTriagePipes()
@@ -291,6 +300,23 @@ export default function MonitorMap({
               {LAYER_LABELS[key]}
             </button>
           ))}
+        </div>
+      )}
+
+      {showCoach && (
+        <div className="map-coach" role="status">
+          <span className="map-coach-text">
+            <span aria-hidden="true">👆</span> 気になる区画をクリック
+            <span className="map-coach-sub">→ 右で実測値を確認できます</span>
+          </span>
+          <button
+            type="button"
+            className="map-coach-close"
+            aria-label="ヒントを閉じる"
+            onClick={() => setCoachDismissed(true)}
+          >
+            ✕
+          </button>
         </div>
       )}
 

@@ -293,6 +293,177 @@
   font-size: 0.8rem;
 }
 
+/* --- 初見向けコーチマーク(地図上・クリック誘導) --- */
+
+.map-coach {
+  position: absolute;
+  top: 0.9rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: rgba(74, 158, 255, 0.16);
+  border: 1px solid #4a9eff;
+  border-radius: 999px;
+  padding: 0.45rem 0.6rem 0.45rem 0.95rem;
+  color: #e6edf3;
+  font-size: 0.82rem;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+  animation: coach-bob 2.4s ease-in-out infinite;
+}
+
+.map-coach-text {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.map-coach-sub {
+  color: #a9b4bf;
+  font-size: 0.76rem;
+}
+
+.map-coach-close {
+  background: transparent;
+  border: none;
+  color: #a9b4bf;
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 0.1rem 0.3rem;
+  border-radius: 999px;
+  line-height: 1;
+}
+
+.map-coach-close:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #e6edf3;
+}
+
+@keyframes coach-bob {
+  0%,
+  100% {
+    transform: translateX(-50%) translateY(0);
+  }
+  50% {
+    transform: translateX(-50%) translateY(-3px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .map-coach {
+    animation: none;
+  }
+}
+
+/* --- この地図の見方(初見向けイントロ・折りたたみ) --- */
+
+.map-guide {
+  border-bottom: 1px solid #263140;
+  flex-shrink: 0;
+}
+
+.map-guide-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  background: rgba(74, 158, 255, 0.06);
+  border: none;
+  border-left: 3px solid #4a9eff;
+  color: #e6edf3;
+  font-size: 0.88rem;
+  font-weight: 600;
+  padding: 0.7rem 1.1rem 0.7rem 1rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.map-guide-toggle:hover {
+  background: rgba(74, 158, 255, 0.1);
+}
+
+.map-guide-caret {
+  color: #6b7681;
+  font-size: 0.7rem;
+}
+
+.map-guide-body {
+  padding: 0.4rem 1.15rem 0.9rem;
+}
+
+.map-guide-body p {
+  margin: 0.4rem 0 0.6rem;
+  font-size: 0.82rem;
+  line-height: 1.7;
+  color: #b7c1cc;
+}
+
+.map-guide-body strong {
+  color: #e6edf3;
+  font-weight: 600;
+}
+
+.map-guide-steps {
+  margin: 0;
+  padding-left: 1.15rem;
+  color: #a9b4bf;
+  font-size: 0.8rem;
+  line-height: 1.65;
+}
+
+.map-guide-steps li {
+  margin-bottom: 0.2rem;
+}
+
+/* --- 用語ツールチップ(初見向けの平易な補足) --- */
+
+.term {
+  position: relative;
+  border-bottom: 1px dotted #6b7681;
+  cursor: help;
+  outline: none;
+}
+
+.term-marker {
+  margin-left: 0.15rem;
+  color: #6b7681;
+  font-size: 0.72em;
+}
+
+.term-tip {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 5;
+  width: max-content;
+  max-width: 240px;
+  background: #0f1418;
+  border: 1px solid #2f5f92;
+  border-radius: 8px;
+  padding: 0.5rem 0.65rem;
+  color: #d6dee6;
+  font-size: 0.74rem;
+  font-weight: 400;
+  line-height: 1.55;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.12s ease;
+  pointer-events: none;
+}
+
+.term:hover .term-tip,
+.term:focus .term-tip,
+.term:focus-visible .term-tip {
+  opacity: 1;
+  visibility: visible;
+}
+
 /* --- Monitor 右レール(選択コックピット D3) --- */
 
 /* 右レールが幅・境界・スクロールを一括で持ち、中の詳細/解説はセクションとして積む。

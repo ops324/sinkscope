@@ -1,5 +1,6 @@
 import type { MeshFeatureProperties } from "../api/client";
 import { landUseLabel } from "../map/colors";
+import Term from "./Term";
 
 // Monitor選択コックピットの詳細パネル(D3)。
 //
@@ -56,7 +57,11 @@ export default function MeshDetailPanel({
             <strong>{selected.mesh_code}</strong>
           </div>
           <div className="metric-row">
-            <span>変位速度（実測）</span>
+            <span>
+              <Term hint="地面が1年でどれだけ上下したか（衛星InSARの実測）。マイナスは沈下側。±数mm/年は誤差の範囲で、符号は解釈しません。">
+                変位速度（実測）
+              </Term>
+            </span>
             <strong>{formatVelocity(selected.velocity_cm_per_year)}</strong>
           </div>
           <div className="metric-row">
@@ -72,7 +77,11 @@ export default function MeshDetailPanel({
             <strong>{formatRoadLength(selected.road_length_m)}</strong>
           </div>
           <div className="metric-row">
-            <span>過去の陥没報告</span>
+            <span>
+              <Term hint="この区画で過去に報告された道路陥没の件数（国交省オープンデータ）。「下水道原因」は要因が下水道と判定されたもの。">
+                過去の陥没報告
+              </Term>
+            </span>
             <strong>
               {selected.event_count}件（うち下水道原因 {selected.sewer_event_count}件）
             </strong>
