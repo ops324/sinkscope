@@ -163,3 +163,32 @@ export function fetchTriagePipes(): Promise<TriagePipesResponse> {
 export function fetchTriageRanking(): Promise<TriageRankingResponse> {
   return getJSON("/api/triage/ranking/");
 }
+
+// 地名検索(D4)の候補。名称＋座標のみで、スコア・予測は含まない。
+export type GeocodeCandidate = {
+  title: string;
+  longitude: number;
+  latitude: number;
+};
+
+// 国土地理院 地名検索API。イベント座標のジオコード(ingest/kanbotsu_xlsx.py)や地図タイルと
+// 同じ来歴(国土地理院)で、CORS許可済みのためブラウザから直接呼べる。連続スコアは扱わない。
+// 全国の候補を返すため、AOI内への絞り込みは呼び出し側の責務(core/aoi.py の DEMO_AOI_BBOX)。
+export async function fetchGeocode(query: string): Promise<GeocodeCandidate[]> {
+  const url = `https://msearch.gsi.go.jp/address-search/AddressSearch?q=${encodeURIComponent(query)}`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Geocode request failed (${response.status})`);
+  }
+  const data = (await response.json()) as Array<{
+    geometry: { coordinates: [number, number] };
+    properties: { title: string };
+  }>;
+  return data
+    .filter((f) => Array.isArray(f.geometry?.coordinates))
+    .map((f) => ({
+      title: f.properties.title,
+      longitude: f.geometry.coordinates[0],
+      latitude: f.geometry.coordinates[1],
+    }));
+}
