@@ -143,25 +143,42 @@ async function getJSON<T>(path: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+// 単一URL配信(D7): 静的モードでは、コミット済みの焼き固めJSON(frontend/public/data/*.json、
+// backend の export_static コマンドが本物のview関数から生成)を同一オリジンから読み、サーバ・DBに
+// 一切アクセスしない。これで GitHub Pages 等の静的ホスティングにそのまま置ける。
+// VITE_DATA_SOURCE=static のビルド(npm run build:static)でのみ有効で、通常の dev(npm run dev)や
+// build ではライブAPI(/api/)を叩くため既存挙動は不変。取得先は import.meta.env.BASE_URL 起点にし、
+// 配信 base が "/" でも "/sinkscope/" でも正しく解決させる(相対パスによるワーカーURL解決問題を回避)。
+const STATIC_DATA = import.meta.env.VITE_DATA_SOURCE === "static";
+
+function endpoint(staticFile: string, livePath: string): string {
+  return STATIC_DATA ? `${import.meta.env.BASE_URL}data/${staticFile}` : livePath;
+}
+
 export function fetchMeshSummary(): Promise<MeshSummaryResponse> {
-  return getJSON("/api/mesh/summary/");
+  return getJSON(endpoint("mesh-summary.json", "/api/mesh/summary/"));
 }
 
 export function fetchEvents(causeFacility?: string): Promise<EventsResponse> {
+  // 静的モードは全イベントの焼き固めJSONを返す。cause_facility での絞り込みは呼び出し側
+  // (MonitorMap.tsx の色分け)が担うため、パラメータなしの1ファイルで足りる。
+  if (STATIC_DATA) {
+    return getJSON(endpoint("events.json", "/api/events/"));
+  }
   const query = causeFacility ? `?cause_facility=${encodeURIComponent(causeFacility)}` : "";
   return getJSON(`/api/events/${query}`);
 }
 
 export function fetchAnalysisRunLatest(): Promise<AnalysisRunLatestResponse> {
-  return getJSON("/api/analysis/run/latest/");
+  return getJSON(endpoint("analysis-run-latest.json", "/api/analysis/run/latest/"));
 }
 
 export function fetchTriagePipes(): Promise<TriagePipesResponse> {
-  return getJSON("/api/triage/pipes/");
+  return getJSON(endpoint("triage-pipes.json", "/api/triage/pipes/"));
 }
 
 export function fetchTriageRanking(): Promise<TriageRankingResponse> {
-  return getJSON("/api/triage/ranking/");
+  return getJSON(endpoint("triage-ranking.json", "/api/triage/ranking/"));
 }
 
 // 地名検索(D4)の候補。名称＋座標のみで、スコア・予測は含まない。
