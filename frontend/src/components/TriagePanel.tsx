@@ -2,6 +2,13 @@ import { useEffect, useState } from "react";
 
 import { fetchTriageRanking, type TriageRankingResponse } from "../api/client";
 import { TIER_LABELS } from "../map/colors";
+import Term from "./Term";
+
+// 初見向けの平易な補足(値そのものは変えない)。
+const SPEARMAN_HINT =
+  "2つの並び順がどれだけ一致するかを-1〜1で表す指標。1に近いほど“ほぼ同じ並び”。ここでは「優先度の並び」と「道路長だけの並び」を比べている。";
+const TIER_HINT =
+  "優先度の大まかな段階（高／中／低）。細かい順位はあえて出さない設計（未検証の数値を“正確な順位”と誤読させないため）。";
 
 function formatRho(rho: number | null): string {
   if (rho === null) return "算出不可";
@@ -60,7 +67,9 @@ export default function TriagePanel() {
           <div className="permutation-result permutation-result--skipped">
             <p className="permutation-title">自己点検：道路長ベースラインとの順位相関</p>
             <div className="metric-row">
-              <span>Spearman順位相関 ρ</span>
+              <span>
+                <Term hint={SPEARMAN_HINT}>順位の一致度（Spearman ρ）</Term>
+              </span>
               <strong>{formatRho(data.metrics.baseline_road_length_spearman_rho)}</strong>
             </div>
             <p className="honesty-caveat">
@@ -72,7 +81,9 @@ export default function TriagePanel() {
 
           <p className="honesty-caveat">{data.metrics.method_validation_note}</p>
 
-          <h3 className="triage-ranking-title">点検候補メッシュ（tier順）</h3>
+          <h3 className="triage-ranking-title">
+            点検候補メッシュ（<Term hint={TIER_HINT}>優先度ランク（tier）</Term>順）
+          </h3>
           <ol className="triage-ranking-list">
             {data.ranking.slice(0, 15).map((row) => (
               <li key={row.mesh_code} className={`triage-ranking-row triage-ranking-row--${row.tier}`}>
