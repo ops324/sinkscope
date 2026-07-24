@@ -281,6 +281,46 @@
   color: #8b98a5;
 }
 
+/* 行内の <button>(D5: 行クリック→地図連動)は既定スタイルを打ち消して行全体を占める。 */
+.triage-ranking-button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.triage-ranking-row:has(.triage-ranking-button):hover {
+  border-color: #33415a;
+}
+
+.triage-ranking-button:focus-visible {
+  outline: 2px solid #7a8b9c;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* 選択中の行。地図の中立灰・破線ロケータと系統を合わせた中立色でカレントを示す
+   (Monitor の実データ選択=青とは別系統。ハザード色は使わない)。 */
+.triage-ranking-row--selected {
+  border-color: #7a8b9c;
+  background: rgba(122, 139, 156, 0.12);
+}
+
+/* 地図に該当区画が無い行(TriageRun と AnalysisRun の不一致)。押せないことを明示。 */
+.triage-ranking-row--unmapped {
+  opacity: 0.65;
+}
+
+.triage-ranking-unmapped {
+  color: #6b7681;
+  font-style: italic;
+}
+
 .map-error {
   position: absolute;
   top: 0.9rem;

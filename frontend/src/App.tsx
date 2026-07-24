@@ -12,15 +12,24 @@ import { MODULE_VIEW_LABELS, type ModuleView } from "./map/types";
 function App() {
   const [moduleView, setModuleView] = useState<ModuleView>("monitor");
   // 選択中メッシュは App が source of truth として保持する(地図クリック→右レール詳細)。
-  // 将来 D4(検索→flyTo/選択)・D5(Triage行→地図連動)からも同じ選択状態を駆動できる。
   const [selectedMesh, setSelectedMesh] = useState<MeshFeatureProperties | null>(null);
   const [meshLoading, setMeshLoading] = useState(true);
+  // Triage行→地図連動(D5)のフォーカス区画。Monitorの selectedMesh とは別チャネル:
+  // Triage行は完全な MeshFeatureProperties を持たず、地図ハイライトに要る mesh_code だけ扱う。
+  const [triageFocusCode, setTriageFocusCode] = useState<string | null>(null);
+  // 地図に実在するメッシュコード集合。triage/ranking(TriageRun)と mesh/summary(AnalysisRun)は
+  // 別runなので、地図に無い行を非インタラクティブ化して「押せるのに無反応」を防ぐ。
+  const [availableMeshCodes, setAvailableMeshCodes] = useState<Set<string>>(() => new Set());
 
   function handleModuleChange(next: ModuleView) {
     setModuleView(next);
-    // Triageへ切替時は Monitor の選択を解除(異なるデータ文脈の混在を避ける)。
+    // Triageへ切替時は Monitor/Triage 双方の選択を解除(異なるデータ文脈の混在を避ける)。
     if (next !== "monitor") setSelectedMesh(null);
+    if (next === "monitor") setTriageFocusCode(null);
   }
+
+  // Monitorでは実データ選択、Triageでは行連動フォーカスを地図ハイライトに渡す。
+  const highlightMeshCode = moduleView === "monitor" ? selectedMesh?.mesh_code ?? null : triageFocusCode;
 
   return (
     <div className="app">
@@ -46,9 +55,10 @@ function App() {
       <div className="app-body">
         <MonitorMap
           moduleView={moduleView}
-          selectedMeshCode={selectedMesh?.mesh_code ?? null}
+          selectedMeshCode={highlightMeshCode}
           onSelectMesh={setSelectedMesh}
           onMeshLoadingChange={setMeshLoading}
+          onMeshCodesLoaded={setAvailableMeshCodes}
         />
         {moduleView === "monitor" ? (
           <div className="monitor-rail">
@@ -61,7 +71,11 @@ function App() {
             <HonestyPanel />
           </div>
         ) : (
-          <TriagePanel />
+          <TriagePanel
+            selectedMeshCode={triageFocusCode}
+            availableMeshCodes={availableMeshCodes}
+            onSelectRow={(code) => setTriageFocusCode((prev) => (prev === code ? null : code))}
+          />
         )}
       </div>
     </div>

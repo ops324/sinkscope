@@ -23,7 +23,15 @@ function roadLengthText(value: number | null): string {
   return value === null ? "データなし" : `${Math.round(value)} m`;
 }
 
-export default function TriagePanel() {
+export default function TriagePanel({
+  selectedMeshCode,
+  availableMeshCodes,
+  onSelectRow,
+}: {
+  selectedMeshCode: string | null;
+  availableMeshCodes: Set<string>;
+  onSelectRow: (meshCode: string) => void;
+}) {
   const [data, setData] = useState<TriageRankingResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -84,22 +92,50 @@ export default function TriagePanel() {
           <h3 className="triage-ranking-title">
             点検候補メッシュ（<Term hint={TIER_HINT}>優先度ランク（tier）</Term>順）
           </h3>
-          <ol className="triage-ranking-list">
-            {data.ranking.slice(0, 15).map((row) => (
-              <li key={row.mesh_code} className={`triage-ranking-row triage-ranking-row--${row.tier}`}>
-                <div className="triage-ranking-row-header">
-                  <span className="triage-tier-badge">{TIER_LABELS[row.tier] ?? row.tier}</span>
-                  <span className="triage-mesh-code">{row.mesh_code}</span>
-                </div>
-                <div className="triage-ranking-breakdown">
-                  <span>変位速度(実測): {velocityText(row.velocity_cm_per_year)}</span>
-                  <span>道路延長: {roadLengthText(row.road_length_m)}</span>
-                  <span>過去の陥没報告(下水道原因): {row.sewer_event_count}件</span>
-                  <span>疑似管路数: {row.pipe_count}本</span>
-                </div>
-              </li>
-            ))}
-          </ol>
+          {/* 連番(<ol>)は「優先キュー」の誤読を招く。tier内順序は mesh_code 昇順であり
+              順位ではない(§9.4)ため <ul> にし、優先度シグナルは tier バッジのみに限定する。 */}
+          <ul className="triage-ranking-list">
+            {data.ranking.slice(0, 15).map((row) => {
+              const selected = row.mesh_code === selectedMeshCode;
+              // 地図(mesh/summary=AnalysisRun)に無いメッシュは連動できないため非インタラクティブ化。
+              const resolvable = availableMeshCodes.has(row.mesh_code);
+              const rowContent = (
+                <>
+                  <div className="triage-ranking-row-header">
+                    <span className="triage-tier-badge">{TIER_LABELS[row.tier] ?? row.tier}</span>
+                    <span className="triage-mesh-code">{row.mesh_code}</span>
+                  </div>
+                  <div className="triage-ranking-breakdown">
+                    <span>変位速度(実測): {velocityText(row.velocity_cm_per_year)}</span>
+                    <span>道路延長: {roadLengthText(row.road_length_m)}</span>
+                    <span>過去の陥没報告(下水道原因): {row.sewer_event_count}件</span>
+                    <span>疑似管路数: {row.pipe_count}本</span>
+                    {!resolvable && <span className="triage-ranking-unmapped">地図非対応（該当区画データなし）</span>}
+                  </div>
+                </>
+              );
+              const rowClass =
+                `triage-ranking-row triage-ranking-row--${row.tier}` +
+                (selected ? " triage-ranking-row--selected" : "") +
+                (resolvable ? "" : " triage-ranking-row--unmapped");
+              return (
+                <li key={row.mesh_code} className={rowClass}>
+                  {resolvable ? (
+                    <button
+                      type="button"
+                      className="triage-ranking-button"
+                      aria-current={selected ? "true" : undefined}
+                      onClick={() => onSelectRow(row.mesh_code)}
+                    >
+                      {rowContent}
+                    </button>
+                  ) : (
+                    rowContent
+                  )}
+                </li>
+              );
+            })}
+          </ul>
         </div>
       )}
 
