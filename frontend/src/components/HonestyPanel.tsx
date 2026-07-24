@@ -1,6 +1,13 @@
 import { useEffect, useState } from "react";
 
 import { fetchAnalysisRunLatest, type AnalysisRunLatestResponse } from "../api/client";
+import Term from "./Term";
+
+// 初見向けの平易な補足(値そのものは変えない)。
+const AOI_HINT =
+  "この地図が対象にしている範囲。デモでは江東区・江戸川区・八潮市周辺。AOI＝Area of Interest（対象エリア）。";
+const PVALUE_HINT =
+  "「もし本当は関係が無くても、偶然だけでこれくらいの差が出る確率」の目安（0〜1）。小さいほど“偶然では説明しにくい”。目安として0.05未満だと「偶然とは考えにくい」とされることが多い。";
 
 function formatPValue(p: number): string {
   return p < 0.001 ? "<0.001" : p.toFixed(3);
@@ -32,7 +39,9 @@ export default function HonestyPanel() {
       {data?.exists && (
         <div className="honesty-metrics">
           <div className="metric-row">
-            <span>AOI内 陥没イベント総数</span>
+            <span>
+              <Term hint={AOI_HINT}>対象エリア</Term>内の陥没イベント総数
+            </span>
             <strong>{data.metrics.in_aoi_event_count}件</strong>
           </div>
           <div className="metric-row">
@@ -48,13 +57,22 @@ export default function HonestyPanel() {
           ) : (
             <div className="permutation-result">
               <p className="permutation-title">付録：空間パーミュテーション検定</p>
+              <p className="honesty-plain">
+                「下水道が原因の陥没が多い場所ほど、地盤が沈んでいるか？」を統計的に確かめた
+                付録です。下の<Term hint={PVALUE_HINT}>p値</Term>が小さいほど、その関係が
+                “偶然では説明しにくい”ことを意味します。
+              </p>
               <p className="honesty-hypothesis">仮説: {data.metrics.permutation_test.hypothesis}</p>
               <div className="metric-row">
-                <span>片側p値（自己相関を無視した下限値）</span>
+                <span>
+                  片側<Term hint={PVALUE_HINT}>p値</Term>（自己相関を無視した下限値）
+                </span>
                 <strong>{formatPValue(data.metrics.permutation_test.p_value_one_sided)}</strong>
               </div>
               <div className="metric-row">
-                <span>両側p値（参考）</span>
+                <span>
+                  両側<Term hint={PVALUE_HINT}>p値</Term>（参考）
+                </span>
                 <strong>{formatPValue(data.metrics.permutation_test.p_value_two_sided)}</strong>
               </div>
               <div className="metric-row">

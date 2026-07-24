@@ -622,6 +622,17 @@
   color: #e6edf3;
 }
 
+.honesty-plain {
+  margin: 0 0 0.6rem;
+  padding: 0.5rem 0.6rem;
+  border-left: 3px solid #4a9eff;
+  background: rgba(74, 158, 255, 0.07);
+  border-radius: 0 6px 6px 0;
+  font-size: 0.8rem;
+  line-height: 1.65;
+  color: #b7c1cc;
+}
+
 .honesty-hypothesis {
   margin: 0 0 0.5rem;
   font-size: 0.78rem;
