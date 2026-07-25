@@ -1,0 +1,786 @@
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.app-header {
+  padding: 0.85rem 1.5rem;
+  border-bottom: 1px solid #263140;
+  flex-shrink: 0;
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 1.35rem;
+  letter-spacing: 0.02em;
+}
+
+.subtitle {
+  margin: 0.15rem 0 0;
+  color: #8b98a5;
+  font-size: 0.85rem;
+}
+
+.module-switcher {
+  margin-top: 0.6rem;
+  display: flex;
+  gap: 0.4rem;
+}
+
+.module-switcher button {
+  background: transparent;
+  border: 1px solid #263140;
+  color: #a9b4bf;
+  font-size: 0.78rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.module-switcher button:hover {
+  background: rgba(74, 158, 255, 0.1);
+}
+
+.module-switcher button.active {
+  background: rgba(74, 158, 255, 0.18);
+  border-color: #4a9eff;
+  color: #e6edf3;
+}
+
+.app-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+/* --- 地図 --- */
+
+.monitor-map {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.monitor-map > :first-child {
+  position: absolute;
+  inset: 0;
+}
+
+.layer-switcher {
+  position: absolute;
+  top: 0.9rem;
+  left: 0.9rem;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  background: rgba(15, 20, 24, 0.85);
+  border: 1px solid #263140;
+  border-radius: 8px;
+  padding: 0.5rem;
+  backdrop-filter: blur(4px);
+}
+
+.layer-switcher button {
+  background: transparent;
+  border: 1px solid transparent;
+  color: #a9b4bf;
+  font-size: 0.82rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 6px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.layer-switcher button:hover {
+  background: rgba(74, 158, 255, 0.1);
+}
+
+.layer-switcher button.active {
+  background: rgba(74, 158, 255, 0.18);
+  border-color: #4a9eff;
+  color: #e6edf3;
+}
+
+.legend {
+  position: absolute;
+  bottom: 0.9rem;
+  left: 0.9rem;
+  z-index: 1;
+  width: 230px;
+  background: rgba(15, 20, 24, 0.9);
+  border: 1px solid #263140;
+  border-radius: 8px;
+  padding: 0.75rem 0.85rem;
+  backdrop-filter: blur(4px);
+  font-size: 0.78rem;
+}
+
+.legend h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  color: #e6edf3;
+}
+
+.legend-bar {
+  height: 10px;
+  border-radius: 4px;
+}
+
+.legend-scale {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.3rem;
+  color: #8b98a5;
+  font-size: 0.68rem;
+}
+
+.legend-caveat {
+  margin: 0.5rem 0 0;
+  color: #6b7681;
+  font-size: 0.7rem;
+  line-height: 1.5;
+}
+
+.legend-categorical {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.legend-swatch-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: #c3cbd3;
+}
+
+.legend-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.legend-swatch--dot {
+  border-radius: 50%;
+}
+
+.legend-events {
+  margin-top: 0.6rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid #263140;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+/* --- Triage: Illustrative バッジ・常設バナー ---
+   guardrail (a)(c): 疑似データ「だけでなく」優先度算出の手法自体が未検証であることを
+   常に視認できる形で束縛するための、専用の警告色(amber)の視覚言語。 */
+
+.illustrative-badge {
+  display: inline-block;
+  padding: 0.12rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(217, 164, 6, 0.18);
+  border: 1px solid #8a6d1a;
+  color: #d9a406;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  vertical-align: middle;
+}
+
+.illustrative-banner {
+  position: absolute;
+  top: 0.9rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(15, 20, 24, 0.9);
+  border: 1px solid #8a6d1a;
+  border-radius: 8px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.78rem;
+  color: #d9a406;
+  backdrop-filter: blur(4px);
+  max-width: min(90%, 560px);
+  text-align: center;
+}
+
+.honesty-tagline--warning {
+  border-left-color: #d9a406;
+  background: rgba(217, 164, 6, 0.08);
+}
+
+.triage-ranking-title {
+  margin: 1rem 0 0.5rem;
+  font-size: 0.85rem;
+  color: #e6edf3;
+}
+
+.triage-ranking-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.triage-ranking-row {
+  border: 1px solid #263140;
+  border-left-width: 3px;
+  border-radius: 6px;
+  padding: 0.5rem 0.65rem;
+}
+
+.triage-ranking-row--high {
+  border-left-color: #9b59b6;
+}
+
+.triage-ranking-row--medium {
+  border-left-color: rgba(155, 89, 182, 0.6);
+}
+
+.triage-ranking-row--low {
+  border-left-color: rgba(155, 89, 182, 0.3);
+}
+
+.triage-ranking-row-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.3rem;
+}
+
+.triage-tier-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #c9a8e0;
+}
+
+.triage-mesh-code {
+  font-size: 0.72rem;
+  color: #6b7681;
+}
+
+.triage-ranking-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.72rem;
+  color: #8b98a5;
+}
+
+/* 行内の <button>(D5: 行クリック→地図連動)は既定スタイルを打ち消して行全体を占める。 */
+.triage-ranking-button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.triage-ranking-row:has(.triage-ranking-button):hover {
+  border-color: #33415a;
+}
+
+.triage-ranking-button:focus-visible {
+  outline: 2px solid #7a8b9c;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* 選択中の行。地図の中立灰・破線ロケータと系統を合わせた中立色でカレントを示す
+   (Monitor の実データ選択=青とは別系統。ハザード色は使わない)。 */
+.triage-ranking-row--selected {
+  border-color: #7a8b9c;
+  background: rgba(122, 139, 156, 0.12);
+}
+
+/* 地図に該当区画が無い行(TriageRun と AnalysisRun の不一致)。押せないことを明示。 */
+.triage-ranking-row--unmapped {
+  opacity: 0.65;
+}
+
+.triage-ranking-unmapped {
+  color: #6b7681;
+  font-style: italic;
+}
+
+.map-error {
+  position: absolute;
+  top: 0.9rem;
+  right: 0.9rem;
+  z-index: 1;
+  background: rgba(178, 24, 43, 0.85);
+  color: #fff;
+  padding: 0.5rem 0.8rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+}
+
+/* --- 地名・住所検索(D4・地図上・上中央) --- */
+.map-search {
+  position: absolute;
+  top: 0.9rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  width: min(30rem, 60%);
+}
+
+.map-search-form {
+  display: flex;
+  gap: 0.35rem;
+  background: rgba(15, 20, 24, 0.85);
+  border: 1px solid #263140;
+  border-radius: 8px;
+  padding: 0.35rem;
+  backdrop-filter: blur(4px);
+}
+
+.map-search-input {
+  flex: 1;
+  min-width: 0;
+  background: rgba(10, 14, 18, 0.9);
+  border: 1px solid #2b3644;
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+  color: #e6edf3;
+  font-size: 0.82rem;
+}
+
+.map-search-input::placeholder {
+  color: #6b7681;
+}
+
+.map-search-input:focus-visible {
+  outline: 2px solid #4a9eff;
+  outline-offset: 1px;
+}
+
+.map-search-button {
+  flex: 0 0 auto;
+  background: #1f2b3a;
+  border: 1px solid #33415a;
+  border-radius: 6px;
+  padding: 0.4rem 0.8rem;
+  color: #e6edf3;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.map-search-button:hover:not(:disabled) {
+  background: #27374b;
+}
+
+.map-search-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.map-search-message {
+  margin: 0.4rem 0 0;
+  background: rgba(15, 20, 24, 0.9);
+  border: 1px solid #263140;
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+  color: #cdd6df;
+  font-size: 0.76rem;
+  backdrop-filter: blur(4px);
+}
+
+/* --- 初見向けコーチマーク(地図上・クリック誘導) --- */
+
+.map-coach {
+  position: absolute;
+  /* 地名検索バー(上中央)の下に置いて重ならないようにする。 */
+  top: 3.6rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: rgba(74, 158, 255, 0.16);
+  border: 1px solid #4a9eff;
+  border-radius: 999px;
+  padding: 0.45rem 0.6rem 0.45rem 0.95rem;
+  color: #e6edf3;
+  font-size: 0.82rem;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+  animation: coach-bob 2.4s ease-in-out infinite;
+}
+
+.map-coach-text {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.map-coach-sub {
+  color: #a9b4bf;
+  font-size: 0.76rem;
+}
+
+.map-coach-close {
+  background: transparent;
+  border: none;
+  color: #a9b4bf;
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 0.1rem 0.3rem;
+  border-radius: 999px;
+  line-height: 1;
+}
+
+.map-coach-close:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #e6edf3;
+}
+
+@keyframes coach-bob {
+  0%,
+  100% {
+    transform: translateX(-50%) translateY(0);
+  }
+  50% {
+    transform: translateX(-50%) translateY(-3px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .map-coach {
+    animation: none;
+  }
+}
+
+/* --- この地図の見方(初見向けイントロ・折りたたみ) --- */
+
+.map-guide {
+  border-bottom: 1px solid #263140;
+  flex-shrink: 0;
+}
+
+.map-guide-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  background: rgba(74, 158, 255, 0.06);
+  border: none;
+  border-left: 3px solid #4a9eff;
+  color: #e6edf3;
+  font-size: 0.88rem;
+  font-weight: 600;
+  padding: 0.7rem 1.1rem 0.7rem 1rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.map-guide-toggle:hover {
+  background: rgba(74, 158, 255, 0.1);
+}
+
+.map-guide-caret {
+  color: #6b7681;
+  font-size: 0.7rem;
+}
+
+.map-guide-body {
+  padding: 0.4rem 1.15rem 0.9rem;
+}
+
+.map-guide-body p {
+  margin: 0.4rem 0 0.6rem;
+  font-size: 0.82rem;
+  line-height: 1.7;
+  color: #b7c1cc;
+}
+
+.map-guide-body strong {
+  color: #e6edf3;
+  font-weight: 600;
+}
+
+.map-guide-steps {
+  margin: 0;
+  padding-left: 1.15rem;
+  color: #a9b4bf;
+  font-size: 0.8rem;
+  line-height: 1.65;
+}
+
+.map-guide-steps li {
+  margin-bottom: 0.2rem;
+}
+
+/* --- 用語ツールチップ(初見向けの平易な補足) --- */
+
+.term {
+  position: relative;
+  border-bottom: 1px dotted #6b7681;
+  cursor: help;
+  outline: none;
+}
+
+.term-marker {
+  margin-left: 0.15rem;
+  color: #6b7681;
+  font-size: 0.72em;
+}
+
+.term-tip {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 5;
+  width: max-content;
+  max-width: 240px;
+  background: #0f1418;
+  border: 1px solid #2f5f92;
+  border-radius: 8px;
+  padding: 0.5rem 0.65rem;
+  color: #d6dee6;
+  font-size: 0.74rem;
+  font-weight: 400;
+  line-height: 1.55;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.12s ease;
+  pointer-events: none;
+}
+
+.term:hover .term-tip,
+.term:focus .term-tip,
+.term:focus-visible .term-tip {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* --- Monitor 右レール(選択コックピット D3) --- */
+
+/* 右レールが幅・境界・スクロールを一括で持ち、中の詳細/解説はセクションとして積む。
+   地図は一切覆わず、視線の着地点を一定にした「座って読む」体験にする。 */
+.monitor-rail {
+  width: 340px;
+  flex-shrink: 0;
+  border-left: 1px solid #263140;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.mesh-detail-panel {
+  padding: 1.1rem 1.25rem;
+  border-bottom: 1px solid #263140;
+  flex-shrink: 0;
+}
+
+.mesh-detail-header {
+  margin-bottom: 0.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.mesh-detail-clear {
+  background: transparent;
+  border: 1px solid #263140;
+  color: #8b98a5;
+  font-size: 0.7rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.mesh-detail-clear:hover {
+  background: rgba(74, 158, 255, 0.1);
+  border-color: #4a9eff;
+  color: #e6edf3;
+}
+
+.mesh-detail-chip {
+  display: inline-block;
+  padding: 0.12rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(74, 158, 255, 0.14);
+  border: 1px solid #2f5f92;
+  color: #7fb6ff;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.mesh-detail-empty,
+.mesh-detail-placeholder {
+  margin: 0;
+  padding: 0.7rem 0.85rem;
+  border-left: 3px solid #3a4653;
+  background: rgba(139, 152, 165, 0.06);
+  color: #8b98a5;
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+
+.mesh-detail-empty-note {
+  color: #6b7681;
+  font-size: 0.75rem;
+}
+
+.mesh-detail-disclaimer {
+  margin: 0.7rem 0 0;
+  padding-top: 0.6rem;
+  border-top: 1px dashed #21272e;
+  font-size: 0.74rem;
+  color: #6b7681;
+  line-height: 1.6;
+}
+
+.mesh-detail-disclaimer strong {
+  color: #a9b4bf;
+}
+
+/* --- HonestyPanel / TriagePanel ---
+   単体で右辺に出るとき(Triageビュー)は自前で幅・境界・スクロールを持つ。
+   Monitorの右レール内にネストされたときは rail 側が担うため打ち消す。 */
+
+.honesty-panel {
+  width: 340px;
+  flex-shrink: 0;
+  padding: 1.1rem 1.25rem;
+  border-left: 1px solid #263140;
+  overflow-y: auto;
+}
+
+.monitor-rail .honesty-panel {
+  width: auto;
+  border-left: none;
+  overflow-y: visible;
+}
+
+.honesty-panel h2 {
+  margin: 0 0 0.4rem;
+  font-size: 1rem;
+}
+
+.honesty-tagline {
+  margin: 0 0 1rem;
+  padding: 0.7rem 0.85rem;
+  border-left: 3px solid #4a9eff;
+  background: rgba(74, 158, 255, 0.08);
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.honesty-error {
+  color: #ff6b6b;
+  font-size: 0.85rem;
+}
+
+.honesty-metrics {
+  margin-bottom: 1rem;
+}
+
+.metric-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 0.3rem 0;
+  font-size: 0.85rem;
+  color: #a9b4bf;
+  border-bottom: 1px dashed #21272e;
+}
+
+.metric-row strong {
+  color: #e6edf3;
+}
+
+.permutation-result {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid #263140;
+  border-radius: 8px;
+}
+
+.permutation-result--skipped {
+  border-color: #4a3a1a;
+  background: rgba(217, 164, 6, 0.06);
+}
+
+.permutation-title {
+  margin: 0 0 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #e6edf3;
+}
+
+.honesty-plain {
+  margin: 0 0 0.6rem;
+  padding: 0.5rem 0.6rem;
+  border-left: 3px solid #4a9eff;
+  background: rgba(74, 158, 255, 0.07);
+  border-radius: 0 6px 6px 0;
+  font-size: 0.8rem;
+  line-height: 1.65;
+  color: #b7c1cc;
+}
+
+.honesty-hypothesis {
+  margin: 0 0 0.5rem;
+  font-size: 0.78rem;
+  color: #8b98a5;
+  line-height: 1.5;
+}
+
+.honesty-caveat {
+  margin: 0.5rem 0 0;
+  font-size: 0.72rem;
+  color: #6b7681;
+  line-height: 1.55;
+}
+
+.honesty-disclaimers {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: #8b98a5;
+  font-size: 0.78rem;
+  line-height: 1.7;
+}
+
+@media (max-width: 900px) {
+  .app-body {
+    flex-direction: column;
+  }
+
+  .monitor-rail {
+    width: auto;
+    border-left: none;
+    border-top: 1px solid #263140;
+    max-height: 45vh;
+  }
+
+  /* TriagePanel は単体で右辺に出るため、狭幅では同様の回り込みを個別指定 */
+  .honesty-panel {
+    width: auto;
+  }
+}
