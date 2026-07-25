@@ -1,0 +1,66 @@
+name: Deploy static demo to GitHub Pages
+
+# 単一URL配信(D7): main への push で、シェア用の静的サイト(サーバ・DB不要)を
+# GitHub Pages へ自動公開する。デモデータは golden snapshot で固定なので、API応答は
+# コミット済みの焼き固めJSON(frontend/public/data/*.json)で足り、ここでは Node だけで
+# ビルドする(Docker/DB 不要＝高速)。JSONが元データと一致することは ci.yml の
+# static-export ジョブが別途強制する。
+#
+# 初回のみユーザー操作が必要: リポジトリ Settings → Pages → Source を「GitHub Actions」に。
+# 公開URL: https://ops324.github.io/sinkscope/ (frontend/vite.config.ts の STATIC_BASE と対応)。
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 公開は直列化する(同時デプロイを避ける)。進行中のデプロイはキャンセルしない。
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # 焼き固めJSON(frontend/public/data/*.json)は Git LFS 管理なので実体を取得する。
+          lfs: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build static site (baked JSON, base=/sinkscope/)
+        working-directory: frontend
+        run: npm run build:static
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

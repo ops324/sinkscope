@@ -33,12 +33,17 @@ frontend/vite.config.d.ts
 .env
 .env.*
 !.env.example
+# 単一URL配信(D7)の静的ビルド設定はコミットする(Pagesビルドが参照するため)。
+# 上の .env.* に巻き込まれて無視されるのを防ぐ明示的な除外。
+!frontend/.env.static
 
 # Data (large binaries; keep dirs via .gitkeep, not contents)
 data/raw/*
 data/processed/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
+# 単一URL配信(D7): export_static の一時出力先(コミット対象は frontend/public/data/)。
+data/web-export/
 
 # Notebooks checkpoints
 .ipynb_checkpoints/

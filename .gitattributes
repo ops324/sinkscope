@@ -1,0 +1,4 @@
+# 単一URL配信(D7): シェア用静的サイトが読む焼き固めJSON。triage-pipes.json 等が
+# 大きい(合計~26MB)ため Git LFS で管理し、リポジトリ本体の履歴を軽量に保つ。
+# GitHub Pages / CI(static-export)の checkout は lfs:true で実体を取得する。
+frontend/public/data/*.json filter=lfs diff=lfs merge=lfs -text

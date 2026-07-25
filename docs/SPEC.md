@@ -640,3 +640,33 @@ Triage ランキング（`components/TriagePanel.tsx`）は静的なリストで
   出す（§10.1 と同じ詳細パネル）。「その地点が陥没する」等の予測は一切示さない。区画は
   フロントの point-in-polygon で求める（バックエンドの格子割当と実質同じ結果）。
 
+## 11. 単一URL配信・シェア用静的サイトの設計判断（D7）
+
+これまで閲覧には Django API（`:8000`）と Vite dev server（`:5173`）の2プロセスが必要で、
+開発者本人のPC上でしか動かなかった。「リンク1つで共有できる」形にするため、**API応答を
+静的JSONへ焼き固め、サーバ・DB不要の完全静的サイトとして GitHub Pages に配信する**方式を採った。
+
+- **なぜ静的で成立するか**。閲覧デモのデータは golden snapshot で固定（§5.2）であり、フロントが
+  呼ぶのは `mesh/summary` / `events` / `analysis/run/latest` / `triage/pipes` / `triage/ranking` の
+  **パラメータなし5エンドポイントのみ**（`fetchEvents` は絞り込み引数なしで呼ばれ、
+  下水道原因の色分けは `map/MonitorMap.tsx` 側で行う）。よって5ファイルの焼き固めで足りる。
+  地図タイル・地名検索は国土地理院の公開API（CORS許可済み）を直接呼ぶため静的サイトでも動く。
+- **ロジックを二重化しない**。`api/management/commands/export_static.py` は独自シリアライズを
+  書かず、`RequestFactory` で**本物の view 関数を呼び `response.content` をそのまま書き出す**。
+  したがって焼き固めJSONはライブAPIと**バイト等価**であり、"見栄え用の別データ" を作らない
+  （誠実性フレームワーク §5 と同じ思想。golden snapshot 再現ハーネスの延長）。
+- **ズレを機械で強制する**。`AnalysisRun.created_at` は `auto_now_add` で、`seed_demo` は
+  `build_monitor`/`generate_triage` を毎回新規実行して新しい pk・時刻の run を作るため、
+  `created_at` / `run_id` / `run.id` は seed のたびに変わる。これらは検証対象データではなく
+  来歴ノイズなので、`export_static --check` は **その allowlist だけを除外した意味的比較**で
+  コミット済みJSONと再生成結果を照合する（substance は seed=42＋固定snapshot で決定的）。
+  CI の独立ジョブ `static-export` がこれを全PR・全pushで走らせ、分析ロジックやsnapshotを
+  変えたのに `make static` で焼き直し忘れると落ちる。時刻/pkだけの差では落とさない。
+- **配信パスへの追従**。フロントの `api/client.ts` は静的モード（`VITE_DATA_SOURCE=static`、
+  `npm run build:static`）で `import.meta.env.BASE_URL` 起点に焼き固めJSONを読む。Pages の
+  プロジェクトサイト用サブパス（`/sinkscope/`）を **絶対 base** にすることで assets と MapLibre
+  ワーカーのURL解決が安定する（相対 `./` はワーカー読込が壊れうる）。通常の `npm run dev` /
+  `build` は従来どおりライブAPI（`/api/`）を叩き、開発フローは不変。
+- **主張の範囲**。共有するのは **固定デモのスナップショット** であって、認証・自動更新・SLAを
+  伴うライブサービスではない（その本番運用は商用化ロードマップのスコープ）。
+
