@@ -22,7 +22,12 @@ backend/media/
 node_modules/
 frontend/dist/
 frontend/.vite/
+*.tsbuildinfo
 *.local
+# tsconfig.node.json(composite)がvite.config.tsを型検査する際にtsc -bが
+# 誤ってここへ吐き出すことがあるビルド副産物(ソースはvite.config.tsのみ)。
+frontend/vite.config.js
+frontend/vite.config.d.ts
 
 # Env / secrets
 .env
@@ -42,4 +47,5 @@ data/processed/*
 .DS_Store
 .vscode/
 .idea/
+.claude/
 *.swp

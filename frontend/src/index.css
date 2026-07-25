@@ -1,0 +1,20 @@
+:root {
+  color-scheme: light dark;
+  font-family: "Hiragino Sans", "Helvetica Neue", Arial, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #0f1418;
+  color: #e6edf3;
+}
