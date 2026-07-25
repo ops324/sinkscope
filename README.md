@@ -122,6 +122,36 @@ cd frontend && npm install && npm run dev   # → http://localhost:5173
 [再現ハーネス](#再現性reproducibility)がCIで継続検証している値と同一である
 （"見栄え用の別データ"を作っていない）。`make help` でタスク一覧。
 
+## シェア用の静的サイト（リンク1つで共有・サーバ/DB不要）
+
+デモデータは golden snapshot で固定なので、API応答をあらかじめJSONへ焼き固めれば、
+**サーバもデータベースも不要の完全静的サイト**として配布できる。生成物 `frontend/dist/` は
+そのまま任意の静的ホスティングに置ける。
+
+```bash
+make static
+# → seed_demo(golden snapshot) → export_static でAPI応答をJSON化 → 静的ビルド(build:static)
+# 出力: frontend/dist（ローカル確認は  npx serve frontend/dist ）
+```
+
+焼き固めJSON（`frontend/public/data/*.json`）は本物のAPI view関数（`backend/api/views.py`）から
+`export_static` コマンドで生成したもので、ライブAPIとバイト等価（"見栄え用の別データ"を作らない）。
+実行ごとに揺れるのは生成時刻とpkのみで、実データ（変位速度・イベント・tier・ρ=0.903 等の
+metrics・disclaimers）が一致することはCIの `static-export` ジョブが継続検証する
+（`export_static --check`、時刻/pkは意味的比較で除外）。
+
+**GitHub Pages で自動公開**：`.github/workflows/pages.yml` が main への push で `frontend/dist` を
+Pages へデプロイする。**初回のみ** リポジトリ Settings → Pages → Source を「GitHub Actions」に
+設定すること。公開URL: `https://ops324.github.io/sinkscope/`（サブパスは
+`frontend/vite.config.ts` の `STATIC_BASE` と対応。リポジトリ名が違う場合はここを変更）。
+
+> 共有するのは **固定デモのスナップショット** であり、ライブに更新されるサービスではない。
+> 地図タイル・地名検索は国土地理院の公開API（CORS許可済み）を直接呼ぶため、静的サイトでも動く。
+
+焼き固めJSONは合計約26MB（疑似管路が大半）と大きいため **Git LFS** で管理している
+（`.gitattributes`）。クローンやビルド前に `git lfs install` が必要（未導入だと実体でなく
+ポインタが取得される）。CI・Pagesの checkout は `lfs: true` で実体を取得する。
+
 ## ローカル開発環境（フル取込・実データを自分で取得する場合）
 
 ```bash
@@ -188,8 +218,10 @@ Moran's I=0.797, 道路長とのSpearman順位相関ρ=0.903）は、文書化�
 - **ALOS-4/PALSAR-3の自前SLC処理**: 2026年時点でPALSAR-3のオープンソース処理系
   （SNAP対応は2025年9月〜、ISCE2等の対応は未確認）は成熟しておらず、費用対効果が
   見合わないため対象外とした。
-- **クラウドデプロイ**: ローカルDocker Composeでの再現性を優先し、デプロイは
-  スコープ外とした。
+- **ライブサービスのクラウドデプロイ**: 認証・自動データ更新・SLAを伴う本番運用は
+  引き続きスコープ外（[商用化ロードマップ](#商用化ロードマップ)参照）。ただし
+  **固定デモの共有可能な静的サイト** は `make static` / GitHub Pages で提供する
+  （上記[シェア用の静的サイト](#シェア用の静的サイトリンク1つで共有サーバdb不要)）。
 
 ## 商用化ロードマップ
 
