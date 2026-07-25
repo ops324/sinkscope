@@ -4,6 +4,9 @@
 
 地盤沈下モニタリング＆下水道点検トリアージ WebGIS
 
+**▶ デモを見る（サーバ・DB不要）: https://ops324.github.io/sinkscope/**
+共有しているのは固定デモのスナップショットであり、ライブに更新されるサービスではない。
+
 > 検出科学（陥没そのものの検知）では競わない ― そこはNTT等の研究開発の領分。
 > 誰も公開データで示していない「公開衛星データ → 自治体が使えるGIS意思決定レイヤー」の
 > ラストマイルを、100%実データで完結するE2Eの成果物として実証する。
@@ -140,10 +143,11 @@ make static
 metrics・disclaimers）が一致することはCIの `static-export` ジョブが継続検証する
 （`export_static --check`、時刻/pkは意味的比較で除外）。
 
-**GitHub Pages で自動公開**：`.github/workflows/pages.yml` が main への push で `frontend/dist` を
-Pages へデプロイする。**初回のみ** リポジトリ Settings → Pages → Source を「GitHub Actions」に
-設定すること。公開URL: `https://ops324.github.io/sinkscope/`（サブパスは
-`frontend/vite.config.ts` の `STATIC_BASE` と対応。リポジトリ名が違う場合はここを変更）。
+**GitHub Pages で自動公開（稼働中）**：`.github/workflows/pages.yml` が main への push で
+`frontend/dist` を Pages へデプロイする。公開URL: https://ops324.github.io/sinkscope/
+（サブパスは `frontend/vite.config.ts` の `STATIC_BASE` と対応。リポジトリ名が違う場合は
+ここを変更する。フォークして自分の Pages で動かす場合は、初回のみ Settings → Pages →
+Source を「GitHub Actions」に設定すること）。
 
 > 共有するのは **固定デモのスナップショット** であり、ライブに更新されるサービスではない。
 > 地図タイル・地名検索は国土地理院の公開API（CORS許可済み）を直接呼ぶため、静的サイトでも動く。
