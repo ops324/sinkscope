@@ -669,4 +669,10 @@ Triage ランキング（`components/TriagePanel.tsx`）は静的なリストで
   `build` は従来どおりライブAPI（`/api/`）を叩き、開発フローは不変。
 - **主張の範囲**。共有するのは **固定デモのスナップショット** であって、認証・自動更新・SLAを
   伴うライブサービスではない（その本番運用は商用化ロードマップのスコープ）。
+- **稼働状況**。GitHub Pages（Source = GitHub Actions）で公開済み。
+  公開URL: https://ops324.github.io/sinkscope/ 。実配信で確認したのは、Monitor の
+  国土地理院タイル＋250mメッシュ＋陥没事案の描画、Triage の疑似管路 51,084 本の描画、
+  および LFS 管理下の `triage-pipes.json`（約22MB）が実体として配信されること。
+  LFS はポインタのまま push しても push 自体は成功してしまうため、**別ディレクトリへ
+  クローンし直して実体を取得できるか**を配信確認の必須項目とする（`CLAUDE.md` 参照）。
 
