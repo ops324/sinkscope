@@ -498,6 +498,11 @@ APIレスポンスの両方に必ず記録する(`triage/scoring.py::baseline_co
 将来、重み付けの見直しや実管路特徴量の追加によってこの相関を下げられるかは
 未検証の課題として残す(商用化ロードマップ「予測価値の実証」参照)。
 
+なお、この相関を下げること自体は重み・写像・欠測処理をいじれば容易に達成できてしまう。
+したがって「下がった」という結果に意味を持たせるには、結果を見る前に設計を固定する
+必要がある。地盤susceptibility項の追加については [docs/PREREGISTRATION.md](./PREREGISTRATION.md)
+に、重み・写像・欠測処理・測定する量・**結果の解釈まで**を測定前に登録してある。
+
 ### 9.4 API(`backend/api/views.py`)
 
 - `GET /api/triage/pipes/`：疑似管路のLineString GeoJSON。各featureの`properties`に
